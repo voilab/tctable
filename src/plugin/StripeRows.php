@@ -5,7 +5,7 @@ namespace voilab\tctable\plugin;
 use voilab\tctable\TcTable;
 use voilab\tctable\Plugin;
 
-class StripeRows implements TcTablePlugin {
+class StripeRows implements Plugin {
 
     /**
      * Détermine si on commence en fill ou pas
