@@ -349,8 +349,8 @@ class TcTable {
      * @return mixed l'éventuel contenu souhaité ou null
      */
     public function trigger($event, array $args = [], $acceptReturn = false) {
-        array_unshift($args, $this);
         if (isset($this->events[$event])) {
+            array_unshift($args, $this);
             foreach ($this->events[$event] as $fn) {
                 $data = call_user_func_array($fn, $args);
                 if ($acceptReturn && $data !== null) {
@@ -746,7 +746,7 @@ class TcTable {
      * @return TcTable
      */
     public function addHeader() {
-        $this->copyDefaultColumnDefinitions([]);
+        $this->copyDefaultColumnDefinitions(null);
         if ($this->trigger(self::EV_HEADER_ADD) !== false) {
             foreach ($this->columnDefinition as $key => $def) {
                 $this->addCell($key, $def['header'], $this->columnDefinition, true);
@@ -853,7 +853,7 @@ class TcTable {
      * données
      * @return float
      */
-    private function getCalculatedWidowsHeight($rows, callable $fn) {
+    private function getCalculatedWidowsHeight($rows, callable $fn = null) {
         $count = count($rows);
         $limit = $count - $this->minWidowsOnPage;
         $h = 0;

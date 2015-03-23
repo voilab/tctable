@@ -18,6 +18,13 @@ $ composer require voilab/tctable
 ```
 
 ## Usage
+The goal of this library is not to replace a complex HTML table with row and
+cell spans. It's mainly useful if you want to display loads of lines (for an
+invoice, etc.) and be sure page breaks are in the right place. You can adapt
+the number of widow lines (minimum of lines that must appear on the last page),
+and use plugins to customize the flow (see below).
+
+###  Basic usage
 ```php
 $pdf = new \TCPDF();
 
@@ -30,6 +37,8 @@ $tctable
         'isMultiLine' => true,
         'header' => 'Description',
         'width' => 100
+        // check inline documentation to see what options are available.
+        // Basically, it's everything TCPDF Cell, MultiCell and Image can eat.
     ])
     ->addColumn('quantity', [
         'header' => 'Quantity',
@@ -56,6 +65,122 @@ $tctable->addBody($rows, function (\voilab\tctable\TcTable $table, $row) {
 });
 
 $pdf->Output('tctable.pdf', 'I');
+```
+
+### Have a column that fit the remaining page width
+```php
+$tctable
+    ->addPlugin(\voilab\tctable\plugin\FitColumn('text'))
+    ->addColumn('text', [
+        'isMultiLine' => true,
+        'header' => 'Text'
+        // no need to set width here, the plugin will calculate it for us,
+        // depending on the other columns width
+    ]);
+```
+
+### Stripe rows
+```php
+$tctable
+    // set true to have the first line with colored background
+    ->addPlugin(\voilab\tctable\plugin\StripeRows(true));
+```
+
+### Custom events
+TcTable triggers some events we can listen to. It allows us to add some
+usefull methods.
+
+#### Add headers on each new page
+```php
+use \voilab\tctable\TcTable;
+// ... create tctable
+
+$tctable
+    // when a page is added, draw headers
+    ->on(TcTable::EV_PAGE_ADDED, function(TcTable $t) {
+        $t->addHeader();
+    })
+    // just before headers are drawn, set font style to bold
+    ->on(TcTable::EV_HEADER_ADD, function(TcTable $t) {
+        $t->getPdf()->SetFont('', 'B');
+    })
+    // after headers are drawn, reset the font style
+    ->on(TcTable::EV_HEADER_ADDED, function(TcTable $t) {
+        $t->getPdf()->SetFont('', '');
+    });
+```
+
+#### Advanced plugin: draw a subtotal for a column at end of each page
+We can go further by calculating a sum for a column, and display the current
+sum at the end of the page, and finally report it on the next page.
+```php
+<?php
+
+namespace your\namespace;
+
+use voilab\tctable\TcTable;
+use voilab\tctable\Plugin;
+
+class Report implements Plugin {
+
+    // column on which we sum its value
+    private $column;
+    // the current calculated sum
+    private $currentSum = 0;
+
+    public function __construct($column) {
+        $this->column = $column;
+    }
+
+    public function configure(TcTable $table) {
+        $table
+            // when launching the main process, reset sum at 0
+            ->on(TcTable::EV_BODY_ADD, [$this, 'resetSum'])
+            // after each added row, add the value to the sum
+            ->on(TcTable::EV_ROW_ADDED, [$this, 'makeSum'])
+            // when a page is added, draw the "subtotal" string
+            ->on(TcTable::EV_PAGE_ADD, [$this, 'addSubTotal'])
+            // after a page is added, draw the "sum from previous page" string
+            ->on(TcTable::EV_PAGE_ADDED, [$this, 'addReport']);
+    }
+
+    public function resetSum() {
+        $this->currentSum = 0;
+    }
+
+    public function makeSum(TcTable $table, $data) {
+        $this->currentSum += $data[$this->column] * 1;
+    }
+
+    public function getSum() {
+        return $this->currentSum;
+    }
+
+    public function addSubTotal(TcTable $table) {
+        $pdf = $table->getPdf();
+        $pdf->SetFont('', 'I');
+        $pdf->SetTextColor(150, 150, 150);
+        $pdf->Cell($table->getColumnWidthUntil($this->column), $table->getColumnHeight(), "Sub-total:", false, false, 'R');
+        $pdf->Cell($table->getColumnWidth($this->column), $table->getColumnHeight(), $this->currentSum, false, false, 'R');
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('', '');
+    }
+
+    public function addReport(TcTable $table) {
+        $pdf = $table->getPdf();
+        $pdf->SetFont('', 'I');
+        $pdf->SetTextColor(150, 150, 150);
+        $table->getPdf()->Cell($table->getColumnWidthUntil($this->column), $table->getColumnHeight(), "Sum from previous page", 'B', false, 'R');
+        $table->getPdf()->Cell($table->getColumnWidth($this->column), $table->getColumnHeight(), $this->currentSum, 'B', true, 'R');
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('', '');
+    }
+
+}
+```
+And the TcTable
+```php
+$tctable->addPlugin(\your\namespace\Report('total'));
 ```
 
 ### To do
