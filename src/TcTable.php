@@ -349,8 +349,8 @@ class TcTable {
      * @return mixed l'éventuel contenu souhaité ou null
      */
     public function trigger($event, array $args = [], $acceptReturn = false) {
-        array_unshift($args, $this);
         if (isset($this->events[$event])) {
+            array_unshift($args, $this);
             foreach ($this->events[$event] as $fn) {
                 $data = call_user_func_array($fn, $args);
                 if ($acceptReturn && $data !== null) {
@@ -746,7 +746,7 @@ class TcTable {
      * @return TcTable
      */
     public function addHeader() {
-        $this->copyDefaultColumnDefinitions([]);
+        $this->copyDefaultColumnDefinitions(null);
         if ($this->trigger(self::EV_HEADER_ADD) !== false) {
             foreach ($this->columnDefinition as $key => $def) {
                 $this->addCell($key, $def['header'], $this->columnDefinition, true);
@@ -791,7 +791,7 @@ class TcTable {
         $count = count($rows);
         // on calcule la hauteur que prendra techniquement l'ensemble minimal
         // des veuves sur la dernière page
-        $h = $this->getCalculatedWidowsHeight($rows);
+        $h = $this->getCalculatedWidowsHeight($rows, $fn);
         foreach ($rows as $index => $row) {
             // si on arrive potentiellement au risque qu'on n'ait pas assez de
             // lignes veuves sur la prochaine page, on ajoute une nouvelle page
@@ -849,15 +849,17 @@ class TcTable {
      * on arrive pas à toutes les câler dans la page en cours.
      *
      * @param array $rows toutes les lignes de données
+     * @param callable $fn la fonction du addBody pour la mise en forme des
+     * données
      * @return float
      */
-    private function getCalculatedWidowsHeight($rows) {
+    private function getCalculatedWidowsHeight($rows, callable $fn = null) {
         $count = count($rows);
         $limit = $count - $this->minWidowsOnPage;
         $h = 0;
         if ($count && $limit >= 0) {
             for ($i = $count - 1; $i >= $limit; $i--) {
-                $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($rows[$i]);
+                $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($fn ? $fn($this, $rows[$i]) : $rows[$i]);
                 $h += $this->_widowsCalculatedHeight[$i];
             }
         }
