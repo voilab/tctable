@@ -1,0 +1,38 @@
+{
+    "name": "voilab/tctable",
+    "description": "Create quickly and efficiently tables without HTML formatting and with advanced page break options",
+    "keywords": [
+        "voilab",
+        "tcpdf",
+        "pdf"
+        "table"
+        "tctable"
+    ],
+    "homepage": "http://www.voilab.ch",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Voilab",
+            "email": "fabien@voilab.org",
+            "homepage": "http://www.voilab.ch",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php" : ">=5.5.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit" : "4.*",
+        "scrutinizer/ocular": "~1.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "voilab\\tctable\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "voilab\\tctable\\test\\": "tests"
+        }
+    }
+}
