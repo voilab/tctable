@@ -14,12 +14,27 @@ class FitColumn implements Plugin {
     private $columnIndex;
 
     /**
+     * La largeur calculée au moment de l'event EV_BODY_ADD
+     * @var float
+     */
+    private $width;
+
+    /**
+     * Recalculer ou non la largeur à chaque  appel à {@link TcTable::addBody()}
+     * @var bool
+     */
+    private $memorizeWidth;
+
+    /**
      * Constructeur du plugin
      *
      * @param string $columnIndex l'index de la colonne à étirer au maximum
+     * @param bool $memorizeWidth False pour recalculer la largeur à chaque
+     * appel à {@link TcTable::addBody()}
      */
-    public function __construct($columnIndex) {
+    public function __construct($columnIndex, $memorizeWidth = true) {
         $this->columnIndex = $columnIndex;
+        $this->memorizeWidth = $memorizeWidth;
     }
 
     /**
@@ -37,12 +52,16 @@ class FitColumn implements Plugin {
      * @return void
      */
     public function setWidth(TcTable $table) {
-        $widths = [];
-        foreach ($table->getColumns() as $key => $column) {
-            $widths[$key] = $column['width'];
+        if (!$this->width || !$this->memorizeWidth) {
+            $widths = [];
+            foreach ($table->getColumns() as $key => $column) {
+                $widths[$key] = $column['width'];
+            }
+            unset($widths[$this->columnIndex]);
+            $this->width = $this->getRemainingColumnWidth($table, $widths);
         }
-        unset($widths[$this->columnIndex]);
-        $table->setColumnDefinition($this->columnIndex, 'width', $this->getRemainingColumnWidth($table, $widths));
+        $width = $this->width;
+        $table->setColumnDefinition($this->columnIndex, 'width', $width);
     }
 
     /**
