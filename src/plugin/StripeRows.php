@@ -8,22 +8,21 @@ use voilab\tctable\Plugin;
 class StripeRows implements Plugin {
 
     /**
-     * Détermine si on commence en fill ou pas
+     * Determine whether we start with a filled row or not
      * @var bool
      */
     private $startFill;
 
     /**
-     * En mode "stripeRows", permet d'alterner le background des lignes
+     * The current fill mode
      * @var bool
      */
     private $rowCurrentStripe;
 
     /**
-     * Constructeur du plugin. Permet de déterminer si on veut commencer la
-     * 1ère ligne par du fill ou pas
+     * Plugin constructor
      *
-     * @param bool $startFill true pour commencer en fill
+     * @param bool $startFill true to start with a filled row
      */
     public function __construct($startFill) {
         $this->startFill = $startFill;
@@ -39,9 +38,9 @@ class StripeRows implements Plugin {
     }
 
     /**
-     * Set le fill pour le lancement du dessin des lignes de la table. Utile
-     * si on instancie une TcTable et qu'on appelle plusieurs fois le addBody
-     * avec des données différentes.
+     * Set fill just before we add all rows. When we instanciate the TcTable
+     * and call addBody many times, it ensures that the first row starts
+     * always the same.
      *
      * @return void
      */
@@ -50,7 +49,7 @@ class StripeRows implements Plugin {
     }
 
     /**
-     * Détermine la couleur de fond de la colonne, en fonction de l'alternance
+     * Set the background of the row
      *
      * @param TcTable $table
      * @return void
@@ -60,8 +59,8 @@ class StripeRows implements Plugin {
         foreach ($table->getRowDefinition() as $column => $row) {
             $table->setRowDefinition($column, 'fill', $row['fill'] ?: $fill);
         }
-        // ajustement du Y à cause du fill qui passe par-dessus le border de la
-        // cellule précédente et qui le cache, du coup
+        // adjust Y because cell background passes over the previous cell's
+        // border, hiding it.
         $y = 0.6 / $table->getPdf()->getScaleFactor();
         $table->getPdf()->SetY($table->getPdf()->GetY() + $y);
     }

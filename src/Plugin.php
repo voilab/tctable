@@ -5,8 +5,8 @@ namespace voilab\tctable;
 interface Plugin {
 
     /**
-     * Configure le plugin, gère les relations avec la table en utilisant les
-     * événements du type $table->on(TcTable::EV_ROW_ADD, [$this, 'maFunc']);
+     * Configuration of the plugin. Manage relations with TcTable, using events
+     * like $tctable->on(TcTable::EV_ROW_ADD, [$this, 'myFunc']);
      *
      * @param TcTable $table
      * @return void

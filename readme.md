@@ -27,29 +27,29 @@ and use plugins to customize the flow (see below).
 ###  Basic usage
 ```php
 $pdf = new \TCPDF();
-
 $minRowHeight = 6; //mm
 $minWidows = 2;
 
 $tctable = new \voilab\tctable\TcTable($pdf, $minRowHeight, $minWidows);
-$tctable
-    ->addColumn('description', [
+$tctable->setColumns([
+    'description' => [
         'isMultiLine' => true,
         'header' => 'Description',
         'width' => 100
         // check inline documentation to see what options are available.
         // Basically, it's everything TCPDF Cell, MultiCell and Image can eat.
-    ])
-    ->addColumn('quantity', [
+    ],
+    'quantity' => [
         'header' => 'Quantity',
         'width' => 20,
         'align' => 'R'
-    ])
-    ->addColumn('price', [
+    ],
+    'price' => [
         'header' => 'Price',
         'width' => 20,
         'align' => 'R'
-    ]);
+    ]
+]);
 
 // get rows data
 $rows = getMyDatas();
