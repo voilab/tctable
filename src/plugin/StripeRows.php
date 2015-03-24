@@ -59,8 +59,16 @@ class StripeRows implements Plugin {
         foreach ($table->getRowDefinition() as $column => $row) {
             $table->setRowDefinition($column, 'fill', $row['fill'] ?: $fill);
         }
-        // adjust Y because cell background passes over the previous cell's
-        // border, hiding it.
+        $this->moveY($table);
+    }
+
+    /**
+     * Adjust Y because cell background passes over the previous cell's border,
+     * hiding it.
+     *
+     * @param TcTable $table
+     */
+    public function moveY(TcTable $table) {
         $y = 0.6 / $table->getPdf()->getScaleFactor();
         $table->getPdf()->SetY($table->getPdf()->GetY() + $y);
     }
