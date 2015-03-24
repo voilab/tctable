@@ -3,292 +3,259 @@
 namespace voilab\tctable;
 
 /**
- * Permet de dessiner facilement des tables avec une gestion poussée des sauts
- * de page et des hauteurs de lignes, ainsi que l'intégration de plugins.
+ * This class can quickly and easily draw tables with an advanced management
+ * of page breaks, row height calculation and plugins integration.
  *
- * Cette classe est ~15% plus lente qu'une création à la main des lignes et des
- * cellules. A noter que la génération d'un tel PDF (15% plus vite, donc) ne
- * tient pas compte efficacement des sauts de page. On peut donc estimer à
- * ~10% seulement la perte de vitesse avec ce système.
+ * One of the more intensive process is in {@link getCurrentRowHeight()} which
+ * call the method {@link \TCPDF::getNumLines()}. The other one is obviously
+ * {@link addCell()} which draw cells. Everything else is only setters and
+ * getters, and small foreach.
  *
- * Le principal noeud se situe dans {@link getCurrentRowHeight()} qui fait
- * appel à la méthode {@link \TCPDF::getNumLines()}, assez gourmande. Le second
- * noeud évidemment inévitable est {@link addCell()} qui dessine les cellules.
- * Tout le reste n'est que set/get de propriétés et petits foreach.
- *
- * Niveau optimisation, {@link \TCPDF::getNumLines()} est appelé 1x pour chaque
- * cellule multiline de chaque row, mais pas pour les headers. Autrement, on
- * boucle sur les colonnes définies:
+ * From optimization point of view, {@link \TCPDF::getNumLines()} is called 1
+ * time for each multiline cell of each row, but not for headers. Columns
+ * foreach is used in this cases:
  * <ul>
- *     <li>1x à chaque affichage de la ligne de headers</li>
- *     <li>2x à chaque affichage des lignes (1x pour trouver la hauteur max et
- *     1x pour les afficher)</li>
- *     <li>1x pour déterminer la largeur de la colonne FitColumn (plugin)</li>
- *     <li>1x par ligne pour déterminer la couleur de fond avec StripeRows
+ *     <li>1 time when drawing headers</li>
+ *     <li>2 time when drawing a row (to find max height and to draw it</li>
+ *     <li>1 time to find FitColumn width (plugin)</li>
+ *     <li>1 time per row to find the background color with StripeRows
  *     (plugin)</li>
  * </ul>
  */
 class TcTable {
 
     /**
-     * Event: avant qu'une row de données ne soit ajoutée
+     * Event: before a row is added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>array</i> <b>$data</b> les datas pour chaque colonne de cette
-     *     ligne</li>
-     *     <li><i>int</i> <b>$rowIndex</b> l'index de cette ligne</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events et
-     * ne pas dessiner la ligne
+     * @return void|bool Return FALSE to stop event chain and to not draw the
+     * row
      */
     const EV_ROW_ADD = 1;
 
     /**
-     * Event: après qu'une row de données soit ajoutée
+     * Event: after a row is added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>array</i> <b>$data</b> les datas pour chaque colonne de cette
-     *     ligne</li>
-     *     <li><i>int</i> <b>$rowIndex</b> l'index de cette ligne</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events
+     * @return void|bool Return FALSE to stop event chain
      */
     const EV_ROW_ADDED = 2;
 
     /**
-     * Event: avant que ne soit calculé la hauteur de la row de données
+     * Event: before cell height is calculated
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>string</i> <b>$column</b> l'index de la colonne en cours de
-     *     calculation de hauteur</li>
-     *     <li><i>array</i> <b>$data</b> les datas pour cette colonne</li>
-     *     <li><i>array</i> <b>$columns</b> les datas pour chaque colonne de
-     *     cette ligne</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>string</i> <b>$column</b> column string index</li>
+     *     <li><i>mixed</i> <b>$data</b> the cell data</li>
+     *     <li><i>array</i> <b>$row</b> row data</li>
      * </ul>
-     * @return mixed la donnée retravaillée qui permettra de calculer la hauteur
-     * de la cellule. Brise la chaîne des events si non null.
+     * @return mixed the new data which will be used to calculate cell height
+     * Stop event chain if value is not null.
      */
     const EV_ROW_HEIGHT_GET = 3;
 
     /**
-     * Event: avant que les headers ne soient ajoutés
+     * Event: before headers are added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events et
-     * ne pas dessiner les headers
+     * @return void|bool Return FALSE to stop event chain and not draw headers
      */
     const EV_HEADER_ADD = 4;
 
     /**
-     * Event: après que les headers soient ajoutés
+     * Event: after headers are added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events
+     * @return void|bool Return FALSE to stop event chain
      */
     const EV_HEADER_ADDED = 5;
 
     /**
-     * Event: après qu'une colonne soit ajoutée à la définition de la table
+     * Event: after a column definition is added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>string</i> <b>$column</b> l'index de cette colonne</li>
-     *     <li><i>array</i> <b>$definition</b> la définition de cette
-     *     colonne</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>string</i> <b>$column</b> column index</li>
+     *     <li><i>array</i> <b>$definition</b> column definition</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events
+     * @return void|bool Return FALSE to stop event chain
      */
     const EV_COLUMN_ADDED = 6;
 
     /**
-     * Event: avant qu'une cellule ne soit ajoutée
+     * Event: before a cell is added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>string</i> <b>$column</b> l'index de cette colonne</li>
-     *     <li><i>mixed</i> <b>$data</b> la donnée à afficher dans la
-     *     cellule</li>
-     *     <li><i>array</i> <b>$definition</b> la définition de cette colonne
-     *     pour la ligne courante
-     *     (ce n'est pas sa définition par défaut)</li>
-     *     <li><i>array</i> <b>$columns</b> les datas pour chaque colonne de
-     *     cette ligne</li>
-     *     <li><i>bool</i> <b>$header</b> true si c'est une cellule header</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>string</i> <b>$column</b> column index</li>
+     *     <li><i>mixed</i> <b>$data</b> cell data</li>
+     *     <li><i>array</i> <b>$definition</b> the row definition (that can
+     *     be changed)</li>
+     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>bool</i> <b>$header</b> true if it's a header cell</li>
      * </ul>
-     * @return mixed la donnée retravaillée à afficher dans la cellule. Brise
-     * la chaîne des events si non null.
+     * @return mixed the data to set in the cell. Stop event chain if value is
+     * not null
      */
     const EV_CELL_ADD = 7;
 
     /**
-     * Event: après qu'une cellule soit ajoutée
+     * Event: after a cell is added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>string</i> <b>$column</b> l'index de cette colonne</li>
-     *     <li><i>mixed</i> <b>$data</b> la donnée à afficher dans la
-     *     cellule</li>
-     *     <li><i>array</i> <b>$definition</b> la définition de cette colonne
-     *     pour la ligne courante
-     *     (ce n'est pas sa définition par défaut)</li>
-     *     <li><i>array</i> <b>$columns</b> les datas pour chaque colonne de
-     *     cette ligne</li>
-     *     <li><i>bool</i> <b>$header</b> true si c'est une cellule header</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>string</i> <b>$column</b> column index</li>
+     *     <li><i>mixed</i> <b>$data</b> cell data</li>
+     *     <li><i>array</i> <b>$definition</b> the row definition (that can
+     *     be changed)</li>
+     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>bool</i> <b>$header</b> true if it's a header cell</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events
+     * @return void|bool Return FALSE to stop event chain
      */
     const EV_CELL_ADDED = 8;
 
     /**
-     * Event: avant qu'un saut de page ne soit ajouté
+     * Event: before a page break is added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>array</i> <b>$columns</b> les datas pour chaque colonne de
-     *     cette ligne</li>
-     *     <li><i>int</i> <b>$rowIndex</b> l'index de cette ligne</li>
-     *     <li><i>bool</i> <b>$widow</b> TRUE si on ajoute la page à cause des
-     *     limitations des veuves, FALSE si c'est seulement la ligne courante
-     *     qui dépasse de la marge du bas</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$row</b> row data if $widow = FALSE, the complete
+     *     set of rows if $widow = TRUE</li>
+     *     <li><i>int</i> <b>$rowIndex</b> row index</li>
+     *     <li><i>bool</i> <b>$widow</b> TRUE if page is added because widows
+     *     can't be drawn on the page, FALSE if it's only the current row that
+     *     can't be drawn because of bottom margin</li>
      * </ul>
-     * @return void|false Retourner FALSE pour ne pas ajouter la page
+     * @return void|bool Return FALSE to stop event chain and not add the page
      */
     const EV_PAGE_ADD = 9;
 
     /**
      * Event: après qu'un saut de page soit ajouté
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>array</i> <b>$columns</b> les datas pour chaque colonne de
-     *     cette ligne</li>
-     *     <li><i>int</i> <b>$rowIndex</b> l'index de cette ligne</li>
-     *     <li><i>bool</i> <b>$widow</b> TRUE si on ajoute la page à cause des
-     *     limitations des veuves, FALSE si c'est seulement la ligne courante
-     *     qui dépasse de la marge du bas</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$row</b> row data if $widow = FALSE, the complete
+     *     set of rows if $widow = TRUE</li>
+     *     <li><i>int</i> <b>$rowIndex</b> row index</li>
+     *     <li><i>bool</i> <b>$widow</b> TRUE if page is added because widows
+     *     can't be drawn on the page, FALSE if it's only the current row that
+     *     can't be drawn because of bottom margin</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events et
-     * pour stopper la chaîne des events
+     * @return void|bool Return FALSE to stop event chain
      */
     const EV_PAGE_ADDED = 10;
 
     /**
-     * Event: avant que les lignes de la table ne soient ajoutées
+     * Event: before data rows are added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>array</i> <b>$rows</b> les datas complètes de la table</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$rows</b> complete set of data rows</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events et
-     * ne pas dessiner les lignes
+     * @return void|bool Return FALSE to stop event chain and not draw any row
      */
     const EV_BODY_ADD = 11;
 
     /**
-     * Event: après que les lignes de la table aient été ajoutées
+     * Event: after data rows are added
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable à l'origine de
-     *     l'event</li>
-     *     <li><i>array</i> <b>$rows</b> les datas complètes de la table</li>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$rows</b> complete set of data rows</li>
      * </ul>
-     * @return void|bool Retourner FALSE pour stopper la chaîne des events
+     * @return void|bool Return FALSE to stop event chain
      */
     const EV_BODY_ADDED = 12;
 
     /**
-     * Le pdf
+     * The TCPDF instance
      * @var \TCPDF
      */
     private $pdf;
 
     /**
-     * Les définitions de colonnes communes à toute les colonnes
+     * Default columns definitions
      * @var array
      */
     private $defaultColumnDefinition = [];
 
     /**
-     * Définition des colonnes
+     * Columns definitions
      * @var array
      */
     private $columnDefinition = [];
 
     /**
-     * Au moment de dessiner une ligne, on copie la columnDefinition dans cette
-     * propriété pour pouvoir la modifier sans changer le défaut
+     * When a row is drawn, we copy the column definition in this property, so
+     * we can modifiy it for this row only, without affecting the default
+     * configuration
      * @var array
      */
     private $rowDefinition = [];
 
     /**
-     * Liste des événements à lancer
+     * Events list available when trigger is called
      * @var array
      */
     private $events = [];
 
     /**
-     * Liste des plugins liés à cette table
+     * Plugins attached to this table
      * @var Plugin[]
      */
     private $plugins = [];
 
     /**
-     * Détermine si on affiche les headers dans le {@link addBody()}
+     * Check if we want to show headers when {@link addBody()}
      * @var bool
      */
     private $showHeader = true;
 
     /**
-     * La hauteur minimale d'une colonne
+     * Min height for the rows
      * @var float
      */
     private $columnHeight;
 
     /**
-     * La hauteur du footer de la table
+     * Table footer height
      * @var float
      */
     private $footerHeight = 0;
 
     /**
-     * La hauteur calculée pour la ligne en cours de traitement
+     * The calculated height for the current row
      * @var float
      */
     private $rowHeight;
 
     /**
-     * Le nombre de lignes de table minimales à avoir sur une nouvelle page
+     * Minimum rows number to have on the last page
      * @var int
      */
     private $minWidowsOnPage;
 
     /**
-     * Au lancement du addBody, on calcule la hauteur des veuves pour prévoir
-     * leur insertion sur la page courante (si non, on ajoute une nouvelle
-     * page). Pour éviter de calculer leur hauteur une fois là, puis une 2e
-     * fois lors du parse de la row, on enregistre les hauteurs ici pour les
-     * réutiliser.
+     * When addBody is called, we calculate widows height so we can check if
+     * it's possible to draw them all on the current page (if not, we add a new
+     * page). To avoid to calculate the height twice, 1 time here and 1 time
+     * when parsing the row, we save heights here so we can reuse them.
      * @var array
      */
     private $_widowsCalculatedHeight = [];
 
     /**
-     * Constructeur. Reçoit un pdf en argument sur lequel va pouvoir s'opérer
-     * toutes les méthodes de pdf. Pour que les sauts de page soient
-     * cohérents, il FAUT définir {@link \TCPDF::SetAutoPageBreak()} avec une
-     * margin bottom (par exemple 2cm).
+     * Constructor. Get the TCPDF instance as first argument. We MUST define
+     * {@link \TCPDF::SetAutoPageBreak()} with a bottom margin (2cm for
+     * example) if we want consistent page breaks
      *
      * @param \TCPDF $pdf
-     * @param float $minColumnHeight la hauteur minimale des lignes
-     * @param int $minWidowsOnPage le nombre de ligne minimum qu'on veut voir
-     * sur la dernière page. 0 = pas de check
+     * @param float $minColumnHeight min height for each content row
+     * @param int $minWidowsOnPage the minimum number of rows we want on the
+     * last page. 0 = no check
      */
     public function __construct(\TCPDF $pdf, $minColumnHeight, $minWidowsOnPage) {
         $this->pdf = $pdf;
@@ -297,10 +264,10 @@ class TcTable {
     }
 
     /**
-     * Ajoute un plugin
+     * Add a plugin
      *
-     * @param Plugin $plugin
-     * @param string $key une clé pour retrouver le plugin avec getPlugin()
+     * @param Plugin $plugin the instanciated plugni
+     * @param string $key a key to quickly find the plugin with getPlugin()
      * @return TcTable
      */
     public function addPlugin(Plugin $plugin, $key = null) {
@@ -314,9 +281,9 @@ class TcTable {
     }
 
     /**
-     * Récupère un plugin selon sa clé d'indexation
+     * Get a plugin
      *
-     * @param mixed $key l'index (0, 1, 2, etc) ou une string
+     * @param mixed $key plugin index (0, 1, 2, etc) or string
      * @return Plugin
      */
     public function getPlugin($key) {
@@ -324,10 +291,10 @@ class TcTable {
     }
 
     /**
-     * Set une action particulière à faire sur un événement particulier
+     * Set an action to do on the specified event
      *
-     * @param string $event le nom de l'event
-     * @param callable $fn la fonction à lancer
+     * @param int $event event code
+     * @param callable $fn function to call when the event is triggered
      * @return TcTable
      */
     public function on($event, callable $fn) {
@@ -339,14 +306,13 @@ class TcTable {
     }
 
     /**
-     * Parcourt la liste des actions renseignées sur cet event et les lance
-     * toutes
+     * Browse registered actions for this event
      *
-     * @param string $event le nom de l'event
-     * @param array $args des arguments particuliers à transmettre aux funcs
-     * @param bool $acceptReturn TRUE pour qu'un retour non-null d'un plugin
-     * soit immédiatement utilisé par TcTable
-     * @return mixed l'éventuel contenu souhaité ou null
+     * @param int $event event code
+     * @param array $args arra of arguments to pass to the event function
+     * @param bool $acceptReturn TRUE so a non-null function return can be used
+     * by TcTable
+     * @return mixed desired content or null
      */
     public function trigger($event, array $args = [], $acceptReturn = false) {
         if (isset($this->events[$event])) {
@@ -363,7 +329,7 @@ class TcTable {
     }
 
     /**
-     * Retourne le pdf qui intègre cette table
+     * Get pdf used by this TcTable
      *
      * @return \TCPDF
      */
@@ -372,64 +338,65 @@ class TcTable {
     }
 
     /**
-     * Définit une colonne. Le tableau de config répond à la structure \TCPDF
-     * concernant les Cell, les MultiCell et les Image
+     * Define a column. Config array is mostly what we find in \TCPDF Cell,
+     * MultiCell and Image.
      *
-     * Les habituels pour cellules mono et multilines:
+     * Frequently used Cell and MultiCell options:
      * <ul>
-     *     <li><i>callable</i> <b>renderer</b>: fonction de rendu des données.
-     *     Reçoit (TcTable $table, $data, array $columns). Attention, la méthode
-     *     de rendu est appelée 2x, l'une pour le calcul de la hauteur de ligne
-     *     et l'autre pour l'affichage effectif dans la cellule.</li>
-     *     <li><i>string</i> <b>header</b>: header de la colonne</li>
-     *     <li><i>float</i> <b>width</b>: largeur de la colonne</li>
-     *     <li><i>string</i> <b>border</b>: bordure de colonne (LTBR)</li>
-     *     <li><i>string</i> <b>align</b>: alignement horizontal du texte
-     *     (LCR)</li>
-     *     <li><i>string</i> <b>valign</b>: alignement vertical du texte
-     *     (TCB)</li>
+     *     <li><i>callable</i> <b>renderer</b>: renderer function for datas.
+     *     Recieve (TcTable $table, $data, array $columns). This method is
+     *     called twice, one time for cell height calculation and one time for
+     *     data drawing.
+     *  </li>
+     *     <li><i>string</i> <b>header</b>: column header text</li>
+     *     <li><i>float</i> <b>width</b>: column width</li>
+     *     <li><i>string</i> <b>border</b>: cell border (LTBR)</li>
+     *     <li><i>string</i> <b>align</b>: text horizontal align (LCR)</li>
+     *     <li><i>string</i> <b>valign</b>: text vertical align (TCB)</li>
      * </ul>
      *
-     * Les habituels pour cellules multilines
+     * MultiCell options:
      * <ul>
-     *     <li><i>bool</i> <b>isMultiLine</b>: true pour indiquer une cellule multiline</li>
-     *     <li><i>bool</i> <b>isHtml</b>: true pour dire que le contenu est du HTML</li>
+     *     <li><i>bool</i> <b>isMultiLine</b>: true tell this is a multiline
+     *     column</li>
+     *     <li><i>bool</i> <b>isHtml</b>: true to tell that this is HTML
+     *     content</li>
      * </ul>
      *
-     * Les habituels pour les cellules images (expérimental)
+     * Image options (experimental)
      * <ul>
      *     <li><i>bool</i> <b>isImage</b>: indique si cette cellule est une
      *     image</li>
-     *     <li><i>string</i> <b>type</b>: JPEG ou PNG</li>
-     *     <li><i>bool</i> <b>resize</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>int</i> <b>dpi</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>string</i> <b>palign</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>isMask</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>mixed</i> <b>imgMask</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>hidden</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>fitOnPage</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>alt</b>: voir doc {@link \TCPDF::Image}</li>
-     *     <li><i>array</i> <b>altImgs</b>: voir doc {@link \TCPDF::Image}</li>
+     *     <li><i>string</i> <b>type</b>: JPEG or PNG</li>
+     *     <li><i>bool</i> <b>resize</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>int</i> <b>dpi</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>string</i> <b>palign</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>bool</i> <b>isMask</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>mixed</i> <b>imgMask</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>bool</i> <b>hidden</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>bool</i> <b>fitOnPage</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>bool</i> <b>alt</b>: see doc {@link \TCPDF::Image}</li>
+     *     <li><i>array</i> <b>altImgs</b>: see doc {@link \TCPDF::Image}</li>
      * </ul>
      *
-     * Toutes les autres options possibles:
+     * All other options available:
      * <ul>
-     *     <li><i>float</i> <b>height</b>: hauteur minimale de la cellule (par
-     *     défaut {@link setRowHeight()}</li>
-     *     <li><i>bool</i> <b>ln</b>: est géré par TcTable. Cette option est
-     *     ignorée.</li>
-     *     <li><i>bool</i> <b>fill</b>: voir doc {@link \TCPDF::Cell}</li>
-     *     <li><i>string</i> <b>link</b>: voir doc {@link \TCPDF::Cell}</li>
-     *     <li><i>int</i> <b>stretch</b>: voir doc {@link \TCPDF::Cell}</li>
-     *     <li><i>bool</i> <b>ignoreHeight</b>: voir doc {@link \TCPDF::Cell}</li>
-     *     <li><i>string</i> <b>calign</b>: voir doc {@link \TCPDF::Cell}</li>
-     *     <li><i>mixed</i> <b>x</b>: voir doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>mixed</i> <b>y</b>: voir doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>bool</i> <b>reseth</b>: voir doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>float</i> <b>maxh</b>: voir doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>bool</i> <b>autoPadding</b>: voir doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>bool</i> <b>fitcell</b>: voir doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>string</i> <b>cellPadding</b>: voir doc {@link \TCPDF::getNumLines}</li>
+     *     <li><i>float</i> <b>height</b>: min height for cell (par défaut
+     *     {@link setColumnHeight()}</li>
+     *     <li><i>bool</i> <b>ln</b>: managed by TcTable. This option is
+     *     ignored.</li>
+     *     <li><i>bool</i> <b>fill</b>: see doc {@link \TCPDF::Cell}</li>
+     *     <li><i>string</i> <b>link</b>: see doc {@link \TCPDF::Cell}</li>
+     *     <li><i>int</i> <b>stretch</b>: see doc {@link \TCPDF::Cell}</li>
+     *     <li><i>bool</i> <b>ignoreHeight</b>: see doc {@link \TCPDF::Cell}</li>
+     *     <li><i>string</i> <b>calign</b>: see doc {@link \TCPDF::Cell}</li>
+     *     <li><i>mixed</i> <b>x</b>: see doc {@link \TCPDF::MultiCell}</li>
+     *     <li><i>mixed</i> <b>y</b>: see doc {@link \TCPDF::MultiCell}</li>
+     *     <li><i>bool</i> <b>reseth</b>: see doc {@link \TCPDF::MultiCell}</li>
+     *     <li><i>float</i> <b>maxh</b>: see doc {@link \TCPDF::MultiCell}</li>
+     *     <li><i>bool</i> <b>autoPadding</b>: see doc {@link \TCPDF::MultiCell}</li>
+     *     <li><i>bool</i> <b>fitcell</b>: see doc {@link \TCPDF::MultiCell}</li>
+     *     <li><i>string</i> <b>cellPadding</b>: see doc {@link \TCPDF::getNumLines}</li>
      * </ul>
      *
      * @param string $column
@@ -437,9 +404,9 @@ class TcTable {
      * @return TcTable
      */
     public function addColumn($column, array $definition) {
-        // on set la nouvelle colonne avec ses configs par défaut. A noter que
-        // le [ln] est toujours mis à FALSE pour cette nouvelle colonne insérée.
-        // Lorsqu'on affichera le addBody(), on mettra TRUE pour la dernière.
+        // set new column with default definitions. Note that [ln] is always
+        // set to FALSE. When addBody(), TRUE will be setted for the last
+        // column.
         $this->columnDefinition[$column] = array_merge([
             'isMultiLine' => false,
             'isImage' => false,
@@ -485,7 +452,7 @@ class TcTable {
     }
 
     /**
-     * Ajoute plusieurs colonnes d'un coup
+     * Add many columns in one shot
      *
      * @see addColumn
      * @param array $columns
@@ -499,11 +466,12 @@ class TcTable {
     }
 
     /**
-     * Set une donnée pour une colonne
+     * Set a specific definition for a column, like the value of border, calign
+     * and so on
      *
-     * @param string $column
-     * @param string $definition
-     * @param mixed $value
+     * @param string $column column string index
+     * @param string $definition definition name (border, calign, etc.)
+     * @param mixed $value definition value ('LTBR', 'T', etc.)
      * @return TcTable
      */
     public function setColumnDefinition($column, $definition, $value) {
@@ -512,9 +480,8 @@ class TcTable {
     }
 
     /**
-     * Set les définitions de colonnes communes à toutes les colonnes
+     * Set default column definitions
      *
-     * @see setColumns
      * @param array $definition
      * @return TcTable
      */
@@ -524,7 +491,7 @@ class TcTable {
     }
 
     /**
-     * Récupère la liste de toutes les colonnes
+     * Get all columns definition
      *
      * @return array
      */
@@ -533,7 +500,7 @@ class TcTable {
     }
 
     /**
-     * Récupère la largeur d'une colonne
+     * Get column width
      *
      * @param string $column
      * @return float
@@ -543,7 +510,8 @@ class TcTable {
     }
 
     /**
-     * Récupère la définition d'une colonne
+     * Get a definition for a column. The returned array is the one used when
+     * drawing a Cell, MultiCell or Image
      *
      * @param string $column
      * @return array
@@ -553,7 +521,7 @@ class TcTable {
     }
 
     /**
-     * Set la hauteur minimale pour une ligne
+     * Set min height used for each cell (headers and contents)
      *
      * @param float $height
      * @return TcTable
@@ -564,8 +532,7 @@ class TcTable {
     }
 
     /**
-     * Retourne la hauteur minimale settée pour chaque cellule, qui forment
-     * une ligne de contenu
+     * Get min height for each cell (headers and contents)
      *
      * @return float
      */
@@ -574,9 +541,8 @@ class TcTable {
     }
 
     /**
-     * Set la hauteur du footer de la table. Est utilisé pour adapter les
-     * veuves sur la dernière page, dans le cas où le footer devait se retrouver
-     * tout seul
+     * Set table footer height. Used to adapt widows on last page, in case the
+     * footer is alone on the last page and it's not what we want.
      *
      * @param float $height
      * @return TcTable
@@ -587,10 +553,9 @@ class TcTable {
     }
 
     /**
-     * Détermine si on affiche ou non les headers lors de l'appel à
-     * {@link addBody()}.
+     * Check if we want to draw headers when calling {@link addBody()}.
      *
-     * @param bool $show
+     * @param bool $show true to show headers
      * @return TcTable
      */
     public function setShowHeader($show) {
@@ -599,17 +564,16 @@ class TcTable {
     }
 
     /**
-     * Récupère la largeur depuis le début de la table jusqu'à une colonne
-     * donnée. La largeur de la colonne donnée n'est pas prise en compte dans
-     * le calcul, on s'arrête au départ de celle-ci.
+     * Get width from start to the given column. Given width's column is not
+     * included in the sum.
      *
-     * Exemple: $table->getColumnWidthUntil('D');
+     * Example: $table->getColumnWidthUntil('D');
      * <pre>
      * | A | B | C | D | E |
      * |-> | ->| ->|   |   |
      * </pre>
      *
-     * @param string $column
+     * @param string $column column to stop sum
      * @return float
      */
     public function getColumnWidthUntil($column) {
@@ -617,33 +581,31 @@ class TcTable {
     }
 
     /**
-     * Calcul la largeur entre 2 colonnes. Les largeurs des deux colonnes sont
-     * incluses dans le calcul.
+     * Get width between two columns. Widths of these columns are included in
+     * the sum.
      *
-     * Exemple: $table->getColumnWidthBetween('B', 'D');
+     * Example: $table->getColumnWidthBetween('B', 'D');
      * <pre>
      * | A | B | C | D | E |
      * |   |-> | ->| ->|   |
      * </pre>
      *
-     * Si la colonne A est vide, réagit comme {@link TcTable::getColumnWidthUntil()}.
-     * Si la colonne B est vide, réagit comme {@link TcTable::getColumnWidthFrom()}.
+     * If column A is empty, behave like {@link TcTable::getColumnWidthUntil()}.
+     * If column B is empty, behave like {@link TcTable::getColumnWidthFrom()}.
      *
-     * @param string $columnA La colonne de départ
-     * @param string $columnB La colonne finale
+     * @param string $columnA start column
+     * @param string $columnB last column
      * @return float
      */
     public function getColumnWidthBetween($columnA, $columnB) {
         $width = 0;
         $check = false;
         foreach ($this->columnDefinition as $key => $def) {
-            // on commence l'addition soit depuis le début, soit depuis la
-            // colonne A
+            // begin sum either from start, or from column A
             if ($key == $columnA || !$columnA) {
                 $check = true;
             }
-            // on stoppe tout si on demande la width depuis le début jusqu'à
-            // la colonne B
+            // stop sum if we want width from start to column B
             if (!$columnA && $key == $columnB) {
                 break;
             }
@@ -658,17 +620,16 @@ class TcTable {
     }
 
     /**
-     * Récupère la largeur depuis une colonne donnée jusqu'à la fin de la table.
-     * La largeur de la colonne donnée est prise en compte dans le calcul, on
-     * commence au départ de celle-ci.
+     * Get width from a column to the end of the table. Given column's width is
+     * added to the sum.
      *
-     * Exemple: $table->getColumnWidthFrom('D');
+     * Example: $table->getColumnWidthFrom('D');
      * <pre>
      * | A | B | C | D | E |
      * |   |   |   |-> | ->|
      * </pre>
      *
-     * @param string $column
+     * @param string $column the column from which we want to find the width
      * @return float
      */
     public function getColumnWidthFrom($column) {
@@ -676,7 +637,7 @@ class TcTable {
     }
 
     /**
-     * Retourne la largeur complète de la table
+     * Get table width (sum of all columns)
      *
      * @return float
      */
@@ -685,7 +646,7 @@ class TcTable {
     }
 
     /**
-     * Set la hauteur minimale pour la ligne en cours de traitement
+     * Set the height of the current row, that will be used for all its cells
      *
      * @param float $height
      * @return TcTable
@@ -696,8 +657,8 @@ class TcTable {
     }
 
     /**
-     * Retourne la hauteur minimale settée pour chaque cellule, qui forment
-     * la ligne de contenu en cours de traitement
+     * Get the real height for current row draw. Will be used to draw each
+     * cell in this row
      *
      * @return float
      */
@@ -706,7 +667,7 @@ class TcTable {
     }
 
     /**
-     * Récupère la configuration custom pour le dessin de la ligne en cours
+     * Get custom configuration for the current row
      *
      * @return array
      */
@@ -715,13 +676,11 @@ class TcTable {
     }
 
     /**
-     * Set la configuration custom pour le dessin de la ligne en cours, en
-     * permettant de modifier juste un élément de configuration d'une seule
-     * colonne.
+     * Set a custom configuration for one specific cell in the current row.
      *
-     * @param string $column
-     * @param string $definition
-     * @param mixed $value
+     * @param string $column column string index
+     * @param string $definition specific configuration (border, etc.)
+     * @param mixed $value value ('LBR' for border, etc.)
      * @return TcTable
      */
     public function setRowDefinition($column, $definition, $value) {
@@ -730,9 +689,9 @@ class TcTable {
     }
 
     /**
-     * Set la configuration custom pour le dessin de la ligne en cours
+     * Set custom configuration for the current row (used mainly in plugins)
      *
-     * @param array $definition
+     * @param array $definition definition for current row
      * @return TcTable
      */
     public function setRows(array $definition) {
@@ -741,7 +700,7 @@ class TcTable {
     }
 
     /**
-     * Ajoute les headers de la table
+     * Add table headers
      *
      * @return TcTable
      */
@@ -757,24 +716,26 @@ class TcTable {
     }
 
     /**
-     * Ajoute les lignes du tableau. On en fait une méthode interne à TcTable
-     * pour pouvoir plus efficacement gérer les sauts de page. Le callable
-     * passé en paramètre reçoit les arguments suivants:
+     * Add content to the table. This method manage widows, page break and
+     * loads of other things. It launches events at start en end, if we need
+     * to add some custom stuff.
+     *
+     * The callable function structure is as follow:
      * <ul>
-     *     <li><i>TcTable</i> <b>$table</b> la TcTable</li>
-     *     <li><i>array</i> <b>$line</b> la ligne de données courante</li>
+     *     <li><i>TcTable</i> <b>$table</b> the TcTable object</li>
+     *     <li><i>array</i> <b>$row</b> current row</li>
      * </ul>
      * <ul>
-     *     <li>Return <i>array</i> les données formattées ou les clés sont
-     *     celles définies dans les {@link TcTable::addColumn()}</li>
+     *     <li>Return <i>array</i> formatted data, where keys are the one
+     *     configured in the column definition</li>
      * </ul>
      *
-     * @param array $rows toutes les lignes de données
-     * @param callable $fn la fonction de formattage des données
+     * @param array $rows the complete set of data
+     * @param callable $fn data layout function
      * @return TcTable
      */
     public function addBody(array $rows, callable $fn = null) {
-        // on met la dernière colonne à TRUE pour le retour de ligne
+        // last column will have TRUE for the TCPDF [ln] property
         end($this->columnDefinition);
         $this->columnDefinition[key($this->columnDefinition)]['ln'] = true;
 
@@ -789,13 +750,10 @@ class TcTable {
         }
         $page_break_trigger = $this->pdf->getPageHeight() - $this->pdf->getBreakMargin() - $this->footerHeight;
         $count = count($rows);
-        // on calcule la hauteur que prendra techniquement l'ensemble minimal
-        // des veuves sur la dernière page
         $h = $this->getCalculatedWidowsHeight($rows, $fn);
         foreach ($rows as $index => $row) {
-            // si on arrive potentiellement au risque qu'on n'ait pas assez de
-            // lignes veuves sur la prochaine page, on ajoute une nouvelle page
-            // en avance.
+            // if the remaining widows can't be drawn on this current page, we
+            // need to force to add a new page.
             if ($index + $this->minWidowsOnPage >= $count && $this->pdf->GetY() + $h >= $page_break_trigger) {
                 if ($this->trigger(self::EV_PAGE_ADD, [$rows, $index, true]) !== false) {
                     $this->pdf->AddPage();
@@ -811,10 +769,10 @@ class TcTable {
     }
 
     /**
-     * Ajoute une ligne. Attend des paires 'column' => 'data'
+     * Add a row
      *
-     * @param array $row
-     * @param int $index le row index
+     * @param array $row row data
+     * @param int $index row index
      * @return TcTable
      */
     private function addRow(array $row, $index = null) {
@@ -831,8 +789,8 @@ class TcTable {
                 $this->pdf->AddPage();
                 $this->trigger(self::EV_PAGE_ADDED, [$row, $index, false]);
             }
-            // on reset la définition de la row à dessiner car si on a dessiné
-            // les headers en début de page, la definition aura été écrasée
+            // reset row definition, because in the event, plugins may have
+            // chosen to draw headers, so the row definition will have changed.
             $this->rowDefinition = $row_definition;
         }
 
@@ -844,13 +802,11 @@ class TcTable {
     }
 
     /**
-     * Calcule la hauteur que prendra techniquement l'ensemble minimal des
-     * veuves sur la dernière page. Utilisé afin de forcer un saut de page si
-     * on arrive pas à toutes les câler dans la page en cours.
+     * Get real height that widows will take. Used to force a page break if the
+     * remaining height isn't enough to draw all the widows on the current page.
      *
-     * @param array $rows toutes les lignes de données
-     * @param callable $fn la fonction du addBody pour la mise en forme des
-     * données
+     * @param array $rows the complete set of data
+     * @param callable $fn addBody function for data layout
      * @return float
      */
     private function getCalculatedWidowsHeight($rows, callable $fn = null) {
@@ -867,21 +823,21 @@ class TcTable {
     }
 
     /**
-     * Copie les définitions de colonne dans une autre propriété. Ça permet
-     * de la modifier comme on veut, tout en gardant les données par défaut.
-     * Ainsi, à la row suivante, on aura de nouveau la configuration "normale".
+     * Copy column definition inside a new property. It allows us to customize
+     * it only for this row. For the next row, column definition will again be
+     * the default one.
      *
-     * Ça permet à certains plugins de modifier temporairement, pour le draw
-     * d'une row seulement, des informations de colonne
+     * Usefull for plugins that need to temporarily, for one precise row, to
+     * change column information (like background color, border, etc)
      *
-     * @param array $columns les données pour la row
-     * @param int $rowIndex le row index
+     * @param array $columns row datas (for each cell)
+     * @param int $rowIndex row index
      * @return void
      */
     private function copyDefaultColumnDefinitions(array $columns = null, $rowIndex = null) {
         $this->rowDefinition = $this->columnDefinition;
-        // si l'index de la row courante correspond à celui d'une veuve dont
-        // on a déjà calculé la hauteur, on reprend cette valeur
+        // if current row index is one of the already-calculated widows height,
+        // we take this value, instead of calculating it a second time.
         $h = $rowIndex !== null && isset($this->_widowsCalculatedHeight[$rowIndex])
             ? $this->_widowsCalculatedHeight[$rowIndex]
             : ($columns !== null ? $this->getCurrentRowHeight($columns) : $this->getColumnHeight());
@@ -890,15 +846,14 @@ class TcTable {
     }
 
     /**
-     * Parcourt 1x tous les contenus de la ligne pour déterminer quel est le
-     * contenu qui prend le plus de place, pour adapter la hauteur de toutes
-     * les cellules
+     * Browse all cells for this row to find which content has the max height.
+     * Then we can adapt the height of all the other cells of this line.
      *
      * @param array $row
      * @return float
      */
     private function getCurrentRowHeight(array $row) {
-        // définition de la hauteur maximale des cellules
+        // get the max height for this row
         $h = $this->getColumnHeight();
         $this->setRowHeight($h);
         foreach ($this->columnDefinition as $key => $def) {
@@ -913,8 +868,8 @@ class TcTable {
             if ($plugin_data !== null) {
                 $data = $plugin_data;
             }
-            // le getNumLines ne tient pas compte de l'html. Pour quand même
-            // avoir une notion de ligne, on remplace les br par des \n
+            // getNumLines doesn't care about HTML. To simulate carriage return,
+            // we replace <br> with \n. Any better idea? Transactions?
             $nb = $this->pdf->getNumLines(strip_tags(str_replace(['<br>', '<br/>'], "\n", $data)), $def['width'],
                 $def['reseth'], $def['autoPadding'],
                 $def['cellPadding'], $def['border']);
@@ -928,12 +883,12 @@ class TcTable {
     }
 
     /**
-     * Dessine une cellule
+     * Draw a cell
      *
-     * @param string $column l'index de la colonne
-     * @param mixed $data les données à afficher dans la cellule
-     * @param array $row toutes les données de la ligne
-     * @param bool $header true si on dessine la ligne des headers
+     * @param string $column column string index
+     * @param mixed $data data to draw inside the cell
+     * @param array $row all datas for this line
+     * @param bool $header true if we draw header cell
      * @return TcTable
      */
     private function addCell($column, $data, array $row, $header = false) {

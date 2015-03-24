@@ -8,29 +8,30 @@ use voilab\tctable\Plugin;
 class FitColumn implements Plugin {
 
     /**
-     * L'index de la colonne à étirer au maximum
+     * Stretched column index
      * @var string
      */
     private $columnIndex;
 
     /**
-     * La largeur calculée au moment de l'event EV_BODY_ADD
+     * Calculated width at EV_BODY_ADD event
      * @var float
      */
     private $width;
 
     /**
-     * Recalculer ou non la largeur à chaque  appel à {@link TcTable::addBody()}
+     * Determines whether or not the width will be recalculated each time we
+     * call  {@link TcTable::addBody()}
      * @var bool
      */
     private $memorizeWidth;
 
     /**
-     * Constructeur du plugin
+     * Plugin constructor
      *
-     * @param string $columnIndex l'index de la colonne à étirer au maximum
-     * @param bool $memorizeWidth False pour recalculer la largeur à chaque
-     * appel à {@link TcTable::addBody()}
+     * @param string $columnIndex stretched column index
+     * @param bool $memorizeWidth FALSE to recalculate width each time
+     * {@link TcTable::addBody()} is called
      */
     public function __construct($columnIndex, $memorizeWidth = true) {
         $this->columnIndex = $columnIndex;
@@ -45,8 +46,8 @@ class FitColumn implements Plugin {
     }
 
     /**
-     * Détermine la largeur maximale de la colonne. Cette méthode est appelée
-     * dès qu'on lance le processus de dessin des lignes de la table
+     * Check the max width if the stretched column. This method is called just
+     * before we start to add data rows
      *
      * @param TcTable $table
      * @return void
@@ -65,11 +66,11 @@ class FitColumn implements Plugin {
     }
 
     /**
-     * Récupère la largeur pour la cellule d'un tableau qui doit s'adapter
-     * à la largeur de la page
+     * Get the remaining width available, taking into account margins and
+     * other cells width.
      *
      * @param TcTable $table
-     * @param array|float $width l'addition des largeurs des autres cellules
+     * @param array|float $width sum of all other cells width
      * @return float
      */
     private function getRemainingColumnWidth(TcTable $table, $width) {
