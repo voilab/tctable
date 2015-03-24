@@ -780,6 +780,7 @@ class TcTable {
         if ($this->trigger(self::EV_ROW_ADD, [$row, $index]) === false) {
             return $this;
         }
+        $row_height = $this->getRowHeight();
         $row_definition = $this->rowDefinition;
 
         $h = current($row_definition)['height'];
@@ -791,6 +792,7 @@ class TcTable {
             }
             // reset row definition, because in the event, plugins may have
             // chosen to draw headers, so the row definition will have changed.
+            $this->setRowHeight($row_height);
             $this->rowDefinition = $row_definition;
         }
 
