@@ -429,7 +429,7 @@ class TcTable {
             'y' => '',
             'reseth' => true,
             'isHtml' => false,
-            'maxh' => 0,
+            'maxh' => null,
             'autoPadding' => true,
             'fitcell' => false,
             // images
@@ -907,9 +907,11 @@ class TcTable {
         }
         $h = $this->getRowHeight();
         if ($c['isMultiLine']) {
+            // for multicell, if maxh = null, set it to cell's height, so
+            // vertical alignment can work
             $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
                 $c['align'], $c['fill'], $c['ln'], $c['x'], $c['y'], $c['reseth'],
-                $c['stretch'], $c['isHtml'], $c['autoPadding'], $c['maxh'],
+                $c['stretch'], $c['isHtml'], $c['autoPadding'], $c['maxh'] === null ? $h : $c['maxh'],
                 $c['valign'], $c['fitcell']);
         } elseif ($c['isImage']) {
             $this->pdf->Image($data, $this->pdf->GetX() + $c['x'],
