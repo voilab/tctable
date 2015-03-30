@@ -10,7 +10,7 @@
     processIsolation="false"
     stopOnFailure="false">
     <testsuites>
-        <testsuite name="Voilab Mapping Test Suite">
+        <testsuite name="Voilab TcTable for TCPDF Test Suite">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

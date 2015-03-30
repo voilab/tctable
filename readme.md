@@ -183,6 +183,55 @@ And the TcTable
 $tctable->addPlugin(\your\namespace\Report('total'));
 ```
 
+### Renderer and body functions
+
+When parsing data, you can define either a renderer function for each or some
+columns, or an anonymous function when calling $tctable->addBody(). These
+functions are called twice, because it is needed in the process for height
+calculation. You need to take that into account in certain cases.
+
+```php
+$total = 0;
+$tctable->addBody($rows, function (TcTable $t, $row, $height) use (&$total) {
+    // if $height is true, it means this method is called when height
+    // calculation is running. If we want to do a sum, we check first if
+    // $height is false, so it means the func is called during row draw.
+    if (!$height) {
+        $total += $row->getSomeValue();
+    }
+    // you still need to return the data regardless of $height
+    return [
+        'description' => $row->getDescription(),
+        'value' => $row->getSomeValue()
+    ];
+});
+
+echo sprintf('Total: %d', $total);
+```
+
+The same idea applies to column renderers.
+
+> *Note*
+> In cases like the one above (creating a sum), you better should use plugins
+> or events. With the event _TcTable::EV_ROW_ADDED_, you can do exactely the
+> same thing without bothering with height calculation (see below).
+
+```php
+$total = 0;
+$tctable
+    ->on(TcTable::EV_ROW_ADDED, function (TcTable $t, $row) use (&$total) {
+        $total += $row->getSomeValue();
+    })
+    ->addBody($rows, function (TcTable $t, $row) {
+        return [
+            'description' => $row->getDescription(),
+            'value' => $row->getSomeValue()
+        ];
+    });
+
+echo sprintf('Total: %d', $total);
+```
+
 ### To do
 Image insertion is extremely experimental...
 

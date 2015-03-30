@@ -11,15 +11,24 @@ namespace voilab\tctable;
  * {@link addCell()} which draw cells. Everything else is only setters and
  * getters, and small foreach.
  *
- * From optimization point of view, {@link \TCPDF::getNumLines()} is called 1
- * time for each multiline cell of each row, but not for headers. Columns
+ * From an optimization point of view, {@link \TCPDF::getNumLines()} is called
+ * 1 time for each multiline cell of each row, but not for headers. Columns
  * foreach is used in this cases:
  * <ul>
  *     <li>1 time when drawing headers</li>
- *     <li>2 time when drawing a row (to find max height and to draw it</li>
+ *     <li>2 time when drawing a row (to find max height and to draw it)</li>
  *     <li>1 time to find FitColumn width (plugin)</li>
  *     <li>1 time per row to find the background color with StripeRows
  *     (plugin)</li>
+ *     <li>Widow rows are parsed twice (1 time for height calculation, and
+ *     1 time as a normal row, to draw its cells)</li>
+ * </ul>
+ * User methods (renderer and body function) are called twice:
+ * <ul>
+ *     <li>Renderer is called during height calculation</li>
+ *     <li>Renderer is called also during cell drawing</li>
+ *     <li>Body function is called during widows height calculation</li>
+ *     <li>Body function is also called during row drawing</li>
  * </ul>
  */
 class TcTable {
@@ -266,7 +275,7 @@ class TcTable {
     /**
      * Add a plugin
      *
-     * @param Plugin $plugin the instanciated plugni
+     * @param Plugin $plugin the instanciated plugin
      * @param string $key a key to quickly find the plugin with getPlugin()
      * @return TcTable
      */
@@ -344,10 +353,10 @@ class TcTable {
      * Frequently used Cell and MultiCell options:
      * <ul>
      *     <li><i>callable</i> <b>renderer</b>: renderer function for datas.
-     *     Recieve (TcTable $table, $data, array $columns). This method is
-     *     called twice, one time for cell height calculation and one time for
-     *     data drawing.
-     *  </li>
+     *     Recieve (TcTable $table, $data, array $columns, $height). The last
+     *     parameter is TRUE when called during height calculation. This method
+     *     is called twice, one time for cell height calculation and one time
+     *     for data drawing.</li>
      *     <li><i>string</i> <b>header</b>: column header text</li>
      *     <li><i>float</i> <b>width</b>: column width</li>
      *     <li><i>string</i> <b>border</b>: cell border (LTBR)</li>
@@ -717,13 +726,15 @@ class TcTable {
 
     /**
      * Add content to the table. This method manage widows, page break and
-     * loads of other things. It launches events at start en end, if we need
+     * loads of other things. It launches events at start and end, if we need
      * to add some custom stuff.
      *
      * The callable function structure is as follow:
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> the TcTable object</li>
      *     <li><i>array</i> <b>$row</b> current row</li>
+     *     <li><i>bool</i> <b>$widow</b> TRUE if this method is called when
+     *     parsing widows</li>
      * </ul>
      * <ul>
      *     <li>Return <i>array</i> formatted data, where keys are the one
@@ -760,7 +771,7 @@ class TcTable {
                     $this->trigger(self::EV_PAGE_ADDED, [$rows, $index, true]);
                 }
             }
-            $this->addRow($fn ? $fn($this, $row) : $row, $index);
+            $this->addRow($fn ? $fn($this, $row, false) : $row, $index);
         }
         $this->trigger(self::EV_BODY_ADDED, [$rows]);
         $this->_widowsCalculatedHeight = [];
@@ -817,7 +828,7 @@ class TcTable {
         $h = 0;
         if ($count && $limit >= 0) {
             for ($i = $count - 1; $i >= $limit; $i--) {
-                $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($fn ? $fn($this, $rows[$i]) : $rows[$i]);
+                $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($fn ? $fn($this, $rows[$i], true) : $rows[$i]);
                 $h += $this->_widowsCalculatedHeight[$i];
             }
         }
@@ -864,7 +875,7 @@ class TcTable {
             }
             $data = $row[$key];
             if (is_callable($def['renderer'])) {
-                $data = $def['renderer']($this, $data, $row);
+                $data = $def['renderer']($this, $data, $row, true);
             }
             $plugin_data = $this->trigger(self::EV_ROW_HEIGHT_GET, [$key, $data, $row], true);
             if ($plugin_data !== null) {
@@ -872,7 +883,8 @@ class TcTable {
             }
             // getNumLines doesn't care about HTML. To simulate carriage return,
             // we replace <br> with \n. Any better idea? Transactions?
-            $nb = $this->pdf->getNumLines(strip_tags(str_replace(['<br>', '<br/>'], "\n", $data)), $def['width'],
+            $data_to_check = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $data));
+            $nb = $this->pdf->getNumLines($data_to_check, $def['width'],
                 $def['reseth'], $def['autoPadding'],
                 $def['cellPadding'], $def['border']);
 
@@ -899,7 +911,7 @@ class TcTable {
         }
         $c = $this->rowDefinition[$column];
         if (!$header && is_callable($c['renderer'])) {
-            $data = $c['renderer']($this, $data, $row);
+            $data = $c['renderer']($this, $data, $row, false);
         }
         $plugin_data = $this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header], true);
         if ($plugin_data !== null) {
