@@ -826,7 +826,7 @@ class TcTable {
         $count = count($rows);
         $limit = $count - $this->minWidowsOnPage;
         $h = 0;
-        if ($count && $limit >= 0) {
+        if ($this->minWidowsOnPage && $count && $limit >= 0) {
             for ($i = $count - 1; $i >= $limit; $i--) {
                 $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($fn ? $fn($this, $rows[$i], true) : $rows[$i]);
                 $h += $this->_widowsCalculatedHeight[$i];
