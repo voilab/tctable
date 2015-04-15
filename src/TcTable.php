@@ -186,6 +186,13 @@ class TcTable {
     private $pdf;
 
     /**
+     * Height of the bottom margin (used in cunjunction with
+     * \TCPDF::SetAutoPageBreak())
+     * @var float
+     */
+    private $bottomMargin = 0;
+
+    /**
      * Default columns definitions
      * @var array
      */
@@ -258,8 +265,7 @@ class TcTable {
 
     /**
      * Constructor. Get the TCPDF instance as first argument. We MUST define
-     * {@link \TCPDF::SetAutoPageBreak()} with a bottom margin (2cm for
-     * example) if we want consistent page breaks
+     * {@link TcTable::setBottomMargin()} if we want consistent page breaks
      *
      * @param \TCPDF $pdf
      * @param float $minColumnHeight min height for each content row
@@ -328,8 +334,10 @@ class TcTable {
             array_unshift($args, $this);
             foreach ($this->events[$event] as $fn) {
                 $data = call_user_func_array($fn, $args);
-                if ($acceptReturn && $data !== null) {
-                    return $data;
+                if ($acceptReturn) {
+                    if ($data !== null) {
+                        return $data;
+                    }
                 } elseif ($data === false) {
                     return false;
                 }
@@ -357,6 +365,8 @@ class TcTable {
      *     parameter is TRUE when called during height calculation. This method
      *     is called twice, one time for cell height calculation and one time
      *     for data drawing.</li>
+     *     <li><i>callable</i> <b>headerRenderer</b>: renderer function for
+     *     headers. Recieve (TcTable $table, $data, array $columns)</li>
      *     <li><i>string</i> <b>header</b>: column header text</li>
      *     <li><i>float</i> <b>width</b>: column width</li>
      *     <li><i>string</i> <b>border</b>: cell border (LTBR)</li>
@@ -374,8 +384,7 @@ class TcTable {
      *
      * Image options (experimental)
      * <ul>
-     *     <li><i>bool</i> <b>isImage</b>: indique si cette cellule est une
-     *     image</li>
+     *     <li><i>bool</i> <b>isImage</b>: tells this cell is an image</li>
      *     <li><i>string</i> <b>type</b>: JPEG or PNG</li>
      *     <li><i>bool</i> <b>resize</b>: see doc {@link \TCPDF::Image}</li>
      *     <li><i>int</i> <b>dpi</b>: see doc {@link \TCPDF::Image}</li>
@@ -390,7 +399,7 @@ class TcTable {
      *
      * All other options available:
      * <ul>
-     *     <li><i>float</i> <b>height</b>: min height for cell (par défaut
+     *     <li><i>float</i> <b>height</b>: min height for cell (default to
      *     {@link setColumnHeight()}</li>
      *     <li><i>bool</i> <b>ln</b>: managed by TcTable. This option is
      *     ignored.</li>
@@ -420,6 +429,7 @@ class TcTable {
             'isMultiLine' => false,
             'isImage' => false,
             'renderer' => null,
+            'headerRenderer' => null,
             'header' => '',
             // cell
             'width' => 10,
@@ -468,6 +478,7 @@ class TcTable {
      * @return \mangetasoupe\pdf\TcTable
      */
     public function setColumns(array $columns) {
+        $this->columnDefinition = [];
         foreach ($columns as $key => $def) {
             $this->addColumn($key, $def);
         }
@@ -569,6 +580,18 @@ class TcTable {
      */
     public function setShowHeader($show) {
         $this->showHeader = $show;
+        return $this;
+    }
+
+    /**
+     * Set the bottom margin of the table (used in cunjunction with
+     * \TCPDF::SetAutoPageBreak())
+     *
+     * @param float $margin
+     * @return TcTable
+     */
+    public function setBottomMargin($margin) {
+        $this->bottomMargin = $margin;
         return $this;
     }
 
@@ -751,9 +774,10 @@ class TcTable {
         $this->columnDefinition[key($this->columnDefinition)]['ln'] = true;
 
         $auto_pb = $this->pdf->getAutoPageBreak();
-        $margins = $this->pdf->getMargins();
-        $this->pdf->SetAutoPageBreak(false, $margins['bottom']);
+        $bmargin = $this->pdf->getMargins()['bottom'];
+        $this->pdf->SetAutoPageBreak(false, $this->bottomMargin);
         if ($this->trigger(self::EV_BODY_ADD, [$rows]) === false) {
+            $this->endBody($auto_pb, $bmargin);
             return $this;
         }
         if ($this->showHeader) {
@@ -771,11 +795,19 @@ class TcTable {
                     $this->trigger(self::EV_PAGE_ADDED, [$rows, $index, true]);
                 }
             }
-            $this->addRow($fn ? $fn($this, $row, false) : $row, $index);
+            $data = $fn ? $fn($this, $row, false) : $row;
+            // draw row only if it's an array. It gives the possibility to skip
+            // some rows with the user func
+            if (is_array($data)) {
+                $this->addRow($data, $index);
+            } else {
+                // adapt total rows, so the widow management behave the best it
+                // can
+                $count--;
+            }
         }
         $this->trigger(self::EV_BODY_ADDED, [$rows]);
-        $this->_widowsCalculatedHeight = [];
-        $this->pdf->SetAutoPageBreak($auto_pb, $margins['bottom']);
+        $this->endBody($auto_pb, $bmargin);
         return $this;
     }
 
@@ -815,6 +847,67 @@ class TcTable {
     }
 
     /**
+     * Draw a cell
+     *
+     * @param string $column column string index
+     * @param mixed $data data to draw inside the cell
+     * @param array $row all datas for this line
+     * @param bool $header true if we draw header cell
+     * @return TcTable
+     */
+    private function addCell($column, $data, array $row, $header = false) {
+        if (!isset($this->rowDefinition[$column])) {
+            return;
+        }
+        $c = $this->rowDefinition[$column];
+        if (!$header && is_callable($c['renderer'])) {
+            $data = $c['renderer']($this, $data, $row, false);
+        } elseif ($header && is_callable($c['headerRenderer'])) {
+            $data = $c['headerRenderer']($this, $data, $row);
+        }
+        $plugin_data = $this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header], true);
+        if ($plugin_data !== null) {
+            $data = $plugin_data;
+        }
+        $h = $this->getRowHeight();
+        if ($c['isMultiLine']) {
+            // for multicell, if maxh = null, set it to cell's height, so
+            // vertical alignment can work
+            $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
+                $c['align'], $c['fill'], $c['ln'], $c['x'], $c['y'], $c['reseth'],
+                $c['stretch'], $c['isHtml'], $c['autoPadding'], $c['maxh'] === null ? $h : $c['maxh'],
+                $c['valign'], $c['fitcell']);
+        } elseif ($c['isImage']) {
+            $this->pdf->Image($data, $this->pdf->GetX() + $c['x'],
+                $this->pdf->GetY() + $c['y'], $c['width'], $h,
+                $c['type'], $c['link'], $c['align'], $c['resize'], $c['dpi'],
+                $c['palign'], $c['isMask'], $c['imgMask'], $c['border'],
+                $c['fitcell'], $c['hidden'], $c['fitOnPage'], $c['alt'],
+                $c['altImgs']);
+            $this->pdf->SetX($this->GetX() + $c['width']);
+        } else {
+            $this->pdf->Cell($c['width'], $h, $data, $c['border'],
+                $c['ln'], $c['align'], $c['fill'], $c['link'], $c['stretch'],
+                $c['ignoreHeight'], $c['calign'], $c['valign']);
+        }
+        $this->trigger(self::EV_CELL_ADDED, [$column, $c, $data, $row, $header]);
+        return $this;
+    }
+
+    /**
+     * Finish process in body function, empty parameters, reset defaults in
+     * the main PDF, etc.
+     *
+     * @param bool $autoPb
+     * @param float $bMargin
+     * @return void
+     */
+    private function endBody($autoPb, $bMargin) {
+        $this->_widowsCalculatedHeight = [];
+        $this->pdf->SetAutoPageBreak($autoPb, $bMargin);
+    }
+
+    /**
      * Get real height that widows will take. Used to force a page break if the
      * remaining height isn't enough to draw all the widows on the current page.
      *
@@ -828,8 +921,17 @@ class TcTable {
         $h = 0;
         if ($this->minWidowsOnPage && $count && $limit >= 0) {
             for ($i = $count - 1; $i >= $limit; $i--) {
-                $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($fn ? $fn($this, $rows[$i], true) : $rows[$i]);
-                $h += $this->_widowsCalculatedHeight[$i];
+                $data = $fn ? $fn($this, $rows[$i], true) : $rows[$i];
+                // check row only if it's an array. It gives the possibility to
+                // skip some rows with the user func
+                if (is_array($data)) {
+                    $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($data);
+                    $h += $this->_widowsCalculatedHeight[$i];
+                } else {
+                    // adapt limit so the widow management behave the best it
+                    // can
+                    $limit--;
+                }
             }
         }
         return $h;
@@ -894,52 +996,6 @@ class TcTable {
             }
         }
         return $this->getRowHeight();
-    }
-
-    /**
-     * Draw a cell
-     *
-     * @param string $column column string index
-     * @param mixed $data data to draw inside the cell
-     * @param array $row all datas for this line
-     * @param bool $header true if we draw header cell
-     * @return TcTable
-     */
-    private function addCell($column, $data, array $row, $header = false) {
-        if (!isset($this->rowDefinition[$column])) {
-            return;
-        }
-        $c = $this->rowDefinition[$column];
-        if (!$header && is_callable($c['renderer'])) {
-            $data = $c['renderer']($this, $data, $row, false);
-        }
-        $plugin_data = $this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header], true);
-        if ($plugin_data !== null) {
-            $data = $plugin_data;
-        }
-        $h = $this->getRowHeight();
-        if ($c['isMultiLine']) {
-            // for multicell, if maxh = null, set it to cell's height, so
-            // vertical alignment can work
-            $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
-                $c['align'], $c['fill'], $c['ln'], $c['x'], $c['y'], $c['reseth'],
-                $c['stretch'], $c['isHtml'], $c['autoPadding'], $c['maxh'] === null ? $h : $c['maxh'],
-                $c['valign'], $c['fitcell']);
-        } elseif ($c['isImage']) {
-            $this->pdf->Image($data, $this->pdf->GetX() + $c['x'],
-                $this->pdf->GetY() + $c['y'], $c['width'], $h,
-                $c['type'], $c['link'], $c['align'], $c['resize'], $c['dpi'],
-                $c['palign'], $c['isMask'], $c['imgMask'], $c['border'],
-                $c['fitcell'], $c['hidden'], $c['fitOnPage'], $c['alt'],
-                $c['altImgs']);
-            $this->pdf->SetX($this->GetX() + $c['width']);
-        } else {
-            $this->pdf->Cell($c['width'], $h, $data, $c['border'],
-                $c['ln'], $c['align'], $c['fill'], $c['link'], $c['stretch'],
-                $c['ignoreHeight'], $c['calign'], $c['valign']);
-        }
-        $this->trigger(self::EV_CELL_ADDED, [$column, $c, $data, $row, $header]);
-        return $this;
     }
 
 }
