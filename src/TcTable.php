@@ -406,15 +406,19 @@ class TcTable {
      *     <li><i>bool</i> <b>fill</b>: see doc {@link \TCPDF::Cell}</li>
      *     <li><i>string</i> <b>link</b>: see doc {@link \TCPDF::Cell}</li>
      *     <li><i>int</i> <b>stretch</b>: see doc {@link \TCPDF::Cell}</li>
-     *     <li><i>bool</i> <b>ignoreHeight</b>: see doc {@link \TCPDF::Cell}</li>
+     *     <li><i>bool</i> <b>ignoreHeight</b>: see doc
+     *     {@link \TCPDF::Cell}</li>
      *     <li><i>string</i> <b>calign</b>: see doc {@link \TCPDF::Cell}</li>
      *     <li><i>mixed</i> <b>x</b>: see doc {@link \TCPDF::MultiCell}</li>
      *     <li><i>mixed</i> <b>y</b>: see doc {@link \TCPDF::MultiCell}</li>
      *     <li><i>bool</i> <b>reseth</b>: see doc {@link \TCPDF::MultiCell}</li>
      *     <li><i>float</i> <b>maxh</b>: see doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>bool</i> <b>autoPadding</b>: see doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>bool</i> <b>fitcell</b>: see doc {@link \TCPDF::MultiCell}</li>
-     *     <li><i>string</i> <b>cellPadding</b>: see doc {@link \TCPDF::getNumLines}</li>
+     *     <li><i>bool</i> <b>autoPadding</b>: see doc
+     *     {@link \TCPDF::MultiCell}</li>
+     *     <li><i>bool</i> <b>fitcell</b>: see doc
+     *     {@link \TCPDF::MultiCell}</li>
+     *     <li><i>string</i> <b>cellPadding</b>: see doc
+     *     {@link \TCPDF::getNumLines}</li>
      * </ul>
      *
      * @param string $column
@@ -466,7 +470,10 @@ class TcTable {
             'cellPadding' => ''
         ], $this->defaultColumnDefinition, $definition);
 
-        $this->trigger(self::EV_COLUMN_ADDED, [$column, $this->columnDefinition[$column]]);
+        $this->trigger(self::EV_COLUMN_ADDED, [
+            $column,
+            $this->columnDefinition[$column]
+        ]);
         return $this;
     }
 
@@ -921,6 +928,11 @@ class TcTable {
         $h = 0;
         if ($this->minWidowsOnPage && $count && $limit >= 0) {
             for ($i = $count - 1; $i >= $limit; $i--) {
+                // the userfunc has returned false everytime, so in the end, the
+                // data array is empty. Return zero
+                if (!isset($rows[$i])) {
+                    return $h;
+                }
                 $data = $fn ? $fn($this, $rows[$i], true) : $rows[$i];
                 // check row only if it's an array. It gives the possibility to
                 // skip some rows with the user func
