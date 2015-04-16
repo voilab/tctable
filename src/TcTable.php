@@ -276,6 +276,7 @@ class TcTable {
         $this->pdf = $pdf;
         $this->columnHeight = $minColumnHeight;
         $this->minWidowsOnPage = $minWidowsOnPage;
+        $this->bottomMargin = $pdf->getMargins()['bottom'];
     }
 
     /**
