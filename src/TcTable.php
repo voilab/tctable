@@ -249,10 +249,16 @@ class TcTable {
     private $rowHeight;
 
     /**
+     * Table max width. Default to page width minus margins
+     * @var float
+     */
+    private $maxWidth;
+
+    /**
      * Minimum rows number to have on the last page
      * @var int
      */
-    private $minWidowsOnPage;
+    private $minWidowsOnPage = 0;
 
     /**
      * When addBody is called, we calculate widows height so we can check if
@@ -269,13 +275,10 @@ class TcTable {
      *
      * @param \TCPDF $pdf
      * @param float $minColumnHeight min height for each content row
-     * @param int $minWidowsOnPage the minimum number of rows we want on the
-     * last page. 0 = no check
      */
-    public function __construct(\TCPDF $pdf, $minColumnHeight, $minWidowsOnPage) {
+    public function __construct(\TCPDF $pdf, $minColumnHeight) {
         $this->pdf = $pdf;
         $this->columnHeight = $minColumnHeight;
-        $this->minWidowsOnPage = $minWidowsOnPage;
         $this->bottomMargin = $pdf->getMargins()['bottom'];
     }
 
@@ -581,6 +584,29 @@ class TcTable {
     }
 
     /**
+     * Set min widows on page
+     *
+     * @param int $minWidows the minimum number of rows we want on the last
+     * page. Default to 0 = no check
+     * @return TcTable
+     */
+    public function setMinWidowsOnPage($minWidows) {
+        $this->minWidowsOnPage = (int) $minWidows;
+        return $this;
+    }
+
+    /**
+     * Set table max width. Default to page width minus margins
+     *
+     * @param float $width
+     * @return TcTable
+     */
+    public function setMaxWidth($width) {
+        $this->maxWidth = $width;
+        return $this;
+    }
+
+    /**
      * Check if we want to draw headers when calling {@link addBody()}.
      *
      * @param bool $show true to show headers
@@ -683,6 +709,15 @@ class TcTable {
      */
     public function getWidth() {
         return $this->getColumnWidthBetween('', '');
+    }
+
+    /**
+     * Return table max width. Default to page width minus margins
+     *
+     * @return float
+     */
+    public function getMaxWidth() {
+        return $this->maxWidth;
     }
 
     /**
