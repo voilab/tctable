@@ -74,8 +74,11 @@ class FitColumn implements Plugin {
      * @return float
      */
     private function getRemainingColumnWidth(TcTable $table, $width) {
-        $margins = $table->getPdf()->getMargins();
-        $content_width = $table->getPdf()->getPageWidth() - $margins['left'] - $margins['right'];
+        $content_width = $table->getMaxWidth();
+        if (!$content_width) {
+            $margins = $table->getPdf()->getMargins();
+            $content_width = $table->getPdf()->getPageWidth() - $margins['left'] - $margins['right'];
+        }
         return $content_width - (is_array($width) ? array_sum($width) : $width);
     }
 
