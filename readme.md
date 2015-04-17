@@ -28,9 +28,8 @@ and use plugins to customize the flow (see below).
 ```php
 $pdf = new \TCPDF();
 $minRowHeight = 6; //mm
-$minWidows = 2;
 
-$tctable = new \voilab\tctable\TcTable($pdf, $minRowHeight, $minWidows);
+$tctable = new \voilab\tctable\TcTable($pdf, $minRowHeight);
 $tctable->setColumns([
     'description' => [
         'isMultiLine' => true,
@@ -192,14 +191,15 @@ calculation. You need to take that into account in certain cases.
 
 ```php
 $total = 0;
-$tctable->addBody($rows, function (TcTable $t, $row, $height) use (&$total) {
+$tctable->addBody($rows, function (TcTable $t, $row, $isHeightCalculation) use (&$total) {
     // if $height is true, it means this method is called when height
     // calculation is running. If we want to do a sum, we check first if
-    // $height is false, so it means the func is called during row draw.
-    if (!$height) {
+    // $isHeightCalculation is false, so it means the func is called during row
+    // draw.
+    if (!$isHeightCalculation) {
         $total += $row->getSomeValue();
     }
-    // you still need to return the data regardless of $height
+    // you still need to return the data regardless of $isHeightCalculation
     return [
         'description' => $row->getDescription(),
         'value' => $row->getSomeValue()
