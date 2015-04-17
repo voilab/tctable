@@ -249,12 +249,6 @@ class TcTable {
     private $rowHeight;
 
     /**
-     * Table max width. Default to page width minus margins
-     * @var float
-     */
-    private $maxWidth;
-
-    /**
      * Minimum rows number to have on the last page
      * @var int
      */
@@ -596,17 +590,6 @@ class TcTable {
     }
 
     /**
-     * Set table max width. Default to page width minus margins
-     *
-     * @param float $width
-     * @return TcTable
-     */
-    public function setMaxWidth($width) {
-        $this->maxWidth = $width;
-        return $this;
-    }
-
-    /**
      * Check if we want to draw headers when calling {@link addBody()}.
      *
      * @param bool $show true to show headers
@@ -709,15 +692,6 @@ class TcTable {
      */
     public function getWidth() {
         return $this->getColumnWidthBetween('', '');
-    }
-
-    /**
-     * Return table max width. Default to page width minus margins
-     *
-     * @return float
-     */
-    public function getMaxWidth() {
-        return $this->maxWidth;
     }
 
     /**
