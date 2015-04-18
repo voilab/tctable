@@ -137,8 +137,8 @@ class TcTable {
      *     set of rows if $widow = TRUE</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      *     <li><i>bool</i> <b>$widow</b> TRUE if page is added because widows
-     *     can't be drawn on the page, FALSE if it's only the current row that
-     *     can't be drawn because of bottom margin</li>
+     *     can't be drawn on the page (plugin), FALSE if it's only the current
+     *     row that can't be drawn because of bottom margin</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain and not add the page
      */
@@ -152,8 +152,8 @@ class TcTable {
      *     set of rows if $widow = TRUE</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      *     <li><i>bool</i> <b>$widow</b> TRUE if page is added because widows
-     *     can't be drawn on the page, FALSE if it's only the current row that
-     *     can't be drawn because of bottom margin</li>
+     *     can't be drawn on the page (plugin), FALSE if it's only the current
+     *     row that can't be drawn because of bottom margin</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain
      */
@@ -164,6 +164,7 @@ class TcTable {
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
      *     <li><i>array</i> <b>$rows</b> complete set of data rows</li>
+     *     <li><i>callable</i> <b>$fn</b> body user function</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain and not draw any row
      */
@@ -178,6 +179,40 @@ class TcTable {
      * @return void|bool Return FALSE to stop event chain
      */
     const EV_BODY_ADDED = 12;
+
+    /**
+     * Event: after the body is skipped (no rows are drawn in the pdf)
+     * <ul>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$rows</b> complete set of data rows</li>
+     * </ul>
+     * @return void|bool Return FALSE to stop event chain
+     */
+    const EV_BODY_SKIPPED = 13;
+
+    /**
+     * Event: after a row is skipped (it is not drawn in the pdf)
+     * <ul>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>int</i> <b>$rowIndex</b> row index</li>
+     * </ul>
+     * @return void|bool Return FALSE to stop event chain
+     */
+    const EV_ROW_SKIPPED = 14;
+
+    /**
+     * Event: during copy of row definition, get row height
+     * <ul>
+     *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
+     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>int</i> <b>$rowIndex</b> row index</li>
+     * </ul>
+     * @return void|float Return the height to set for the rowdefinition when
+     * values are copied from default column definition to current row. If not
+     * null, will stop event chain
+     */
+    const EV_ROW_HEIGHT_GET_COPY = 15;
 
     /**
      * The TCPDF instance
@@ -237,37 +272,16 @@ class TcTable {
     private $columnHeight;
 
     /**
-     * Table footer height
-     * @var float
-     */
-    private $footerHeight = 0;
-
-    /**
      * The calculated height for the current row
      * @var float
      */
     private $rowHeight;
 
     /**
-     * Table max width. Default to page width minus margins
-     * @var float
-     */
-    private $maxWidth;
-
-    /**
-     * Minimum rows number to have on the last page
-     * @var int
-     */
-    private $minWidowsOnPage = 0;
-
-    /**
-     * When addBody is called, we calculate widows height so we can check if
-     * it's possible to draw them all on the current page (if not, we add a new
-     * page). To avoid to calculate the height twice, 1 time here and 1 time
-     * when parsing the row, we save heights here so we can reuse them.
+     * Row definition stash
      * @var array
      */
-    private $_widowsCalculatedHeight = [];
+    private $rowDefinitionStash;
 
     /**
      * Constructor. Get the TCPDF instance as first argument. We MUST define
@@ -572,41 +586,6 @@ class TcTable {
     }
 
     /**
-     * Set table footer height. Used to adapt widows on last page, in case the
-     * footer is alone on the last page and it's not what we want.
-     *
-     * @param float $height
-     * @return TcTable
-     */
-    public function setFooterHeight($height) {
-        $this->footerHeight = $height;
-        return $this;
-    }
-
-    /**
-     * Set min widows on page
-     *
-     * @param int $minWidows the minimum number of rows we want on the last
-     * page. Default to 0 = no check
-     * @return TcTable
-     */
-    public function setMinWidowsOnPage($minWidows) {
-        $this->minWidowsOnPage = (int) $minWidows;
-        return $this;
-    }
-
-    /**
-     * Set table max width. Default to page width minus margins
-     *
-     * @param float $width
-     * @return TcTable
-     */
-    public function setMaxWidth($width) {
-        $this->maxWidth = $width;
-        return $this;
-    }
-
-    /**
      * Check if we want to draw headers when calling {@link addBody()}.
      *
      * @param bool $show true to show headers
@@ -712,15 +691,6 @@ class TcTable {
     }
 
     /**
-     * Return table max width. Default to page width minus margins
-     *
-     * @return float
-     */
-    public function getMaxWidth() {
-        return $this->maxWidth;
-    }
-
-    /**
      * Set the height of the current row, that will be used for all its cells
      *
      * @param float $height
@@ -775,6 +745,71 @@ class TcTable {
     }
 
     /**
+     * Keep in memory the current row definition
+     *
+     * @return TcTable
+     */
+    public function stashRowDefinition() {
+        $this->rowDefinitionStash = [
+            'height' => $this->getRowHeight(),
+            'def' => $this->rowDefinition
+        ];
+        return $this;
+    }
+
+    /**
+     * Apply row definition stash. Stash is emptied afterwards.
+     *
+     * @return TcTable
+     */
+    public function applyRowDefinition() {
+        if ($this->rowDefinitionStash) {
+            $this->setRowHeight($this->rowDefinitionStash['height']);
+            $this->rowDefinition = $this->rowDefinitionStash['def'];
+        }
+        $this->rowDefinitionStash = null;
+        return $this;
+    }
+
+    /**
+     * Browse all cells for this row to find which content has the max height.
+     * Then we can adapt the height of all the other cells of this line.
+     *
+     * @param array $row
+     * @return float
+     */
+    public function getCurrentRowHeight(array $row) {
+        // get the max height for this row
+        $h = $this->getColumnHeight();
+        $this->setRowHeight($h);
+        foreach ($this->columnDefinition as $key => $def) {
+            if (!isset($row[$key]) || !$def['isMultiLine']) {
+                continue;
+            }
+            $data = $row[$key];
+            if (is_callable($def['renderer'])) {
+                $data = $def['renderer']($this, $data, $row, true);
+            }
+            $plugin_data = $this->trigger(self::EV_ROW_HEIGHT_GET, [$key, $data, $row], true);
+            if ($plugin_data !== null) {
+                $data = $plugin_data;
+            }
+            // getNumLines doesn't care about HTML. To simulate carriage return,
+            // we replace <br> with \n. Any better idea? Transactions?
+            $data_to_check = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $data));
+            $nb = $this->pdf->getNumLines($data_to_check, $def['width'],
+                $def['reseth'], $def['autoPadding'],
+                $def['cellPadding'], $def['border']);
+
+            $hd = $nb * $h;
+            if ($hd > $this->getRowHeight()) {
+                $this->setRowHeight($hd);
+            }
+        }
+        return $this->getRowHeight();
+    }
+
+    /**
      * Add table headers
      *
      * @return TcTable
@@ -791,8 +826,7 @@ class TcTable {
     }
 
     /**
-     * Add content to the table. This method manage widows, page break and
-     * loads of other things. It launches events at start and end, if we need
+     * Add content to the table. It launches events at start and end, if we need
      * to add some custom stuff.
      *
      * The callable function structure is as follow:
@@ -800,7 +834,7 @@ class TcTable {
      *     <li><i>TcTable</i> <b>$table</b> the TcTable object</li>
      *     <li><i>array</i> <b>$row</b> current row</li>
      *     <li><i>bool</i> <b>$widow</b> TRUE if this method is called when
-     *     parsing widows</li>
+     *     parsing widows (from plugin plugin\Widows)</li>
      * </ul>
      * <ul>
      *     <li>Return <i>array</i> formatted data, where keys are the one
@@ -819,34 +853,22 @@ class TcTable {
         $auto_pb = $this->pdf->getAutoPageBreak();
         $bmargin = $this->pdf->getMargins()['bottom'];
         $this->pdf->SetAutoPageBreak(false, $this->bottomMargin);
-        if ($this->trigger(self::EV_BODY_ADD, [$rows]) === false) {
+        if ($this->trigger(self::EV_BODY_ADD, [$rows, $fn]) === false) {
             $this->endBody($auto_pb, $bmargin);
+            $this->trigger(self::EV_BODY_SKIPPED, [$rows]);
             return $this;
         }
         if ($this->showHeader) {
             $this->addHeader();
         }
-        $page_break_trigger = $this->pdf->getPageHeight() - $this->pdf->getBreakMargin() - $this->footerHeight;
-        $count = count($rows);
-        $h = $this->getCalculatedWidowsHeight($rows, $fn);
         foreach ($rows as $index => $row) {
-            // if the remaining widows can't be drawn on this current page, we
-            // need to force to add a new page.
-            if ($index + $this->minWidowsOnPage >= $count && $this->pdf->GetY() + $h >= $page_break_trigger) {
-                if ($this->trigger(self::EV_PAGE_ADD, [$rows, $index, true]) !== false) {
-                    $this->pdf->AddPage();
-                    $this->trigger(self::EV_PAGE_ADDED, [$rows, $index, true]);
-                }
-            }
             $data = $fn ? $fn($this, $row, false) : $row;
             // draw row only if it's an array. It gives the possibility to skip
             // some rows with the user func
             if (is_array($data)) {
                 $this->addRow($data, $index);
             } else {
-                // adapt total rows, so the widow management behave the best it
-                // can
-                $count--;
+                $this->trigger(self::EV_ROW_SKIPPED, [$row, $index]);
             }
         }
         $this->trigger(self::EV_BODY_ADDED, [$rows]);
@@ -866,10 +888,9 @@ class TcTable {
         if ($this->trigger(self::EV_ROW_ADD, [$row, $index]) === false) {
             return $this;
         }
-        $row_height = $this->getRowHeight();
-        $row_definition = $this->rowDefinition;
+        $this->stashRowDefinition();
 
-        $h = current($row_definition)['height'];
+        $h = current($this->rowDefinition)['height'];
         $page_break_trigger = $this->pdf->getPageHeight() - $this->pdf->getBreakMargin();
         if ($this->pdf->GetY() + $h >= $page_break_trigger) {
             if ($this->trigger(self::EV_PAGE_ADD, [$row, $index, false]) !== false) {
@@ -878,8 +899,7 @@ class TcTable {
             }
             // reset row definition, because in the event, plugins may have
             // chosen to draw headers, so the row definition will have changed.
-            $this->setRowHeight($row_height);
-            $this->rowDefinition = $row_definition;
+            $this->applyRowDefinition();
         }
 
         foreach ($this->columnDefinition as $key => $value) {
@@ -946,43 +966,7 @@ class TcTable {
      * @return void
      */
     private function endBody($autoPb, $bMargin) {
-        $this->_widowsCalculatedHeight = [];
         $this->pdf->SetAutoPageBreak($autoPb, $bMargin);
-    }
-
-    /**
-     * Get real height that widows will take. Used to force a page break if the
-     * remaining height isn't enough to draw all the widows on the current page.
-     *
-     * @param array $rows the complete set of data
-     * @param callable $fn addBody function for data layout
-     * @return float
-     */
-    private function getCalculatedWidowsHeight($rows, callable $fn = null) {
-        $count = count($rows);
-        $limit = $count - $this->minWidowsOnPage;
-        $h = 0;
-        if ($this->minWidowsOnPage && $count && $limit >= 0) {
-            for ($i = $count - 1; $i >= $limit; $i--) {
-                // the userfunc has returned false everytime, so in the end, the
-                // data array is empty. Return zero
-                if (!isset($rows[$i])) {
-                    return $h;
-                }
-                $data = $fn ? $fn($this, $rows[$i], true) : $rows[$i];
-                // check row only if it's an array. It gives the possibility to
-                // skip some rows with the user func
-                if (is_array($data)) {
-                    $this->_widowsCalculatedHeight[$i] = $this->getCurrentRowHeight($data);
-                    $h += $this->_widowsCalculatedHeight[$i];
-                } else {
-                    // adapt limit so the widow management behave the best it
-                    // can
-                    $limit--;
-                }
-            }
-        }
-        return $h;
     }
 
     /**
@@ -999,51 +983,13 @@ class TcTable {
      */
     private function copyDefaultColumnDefinitions(array $columns = null, $rowIndex = null) {
         $this->rowDefinition = $this->columnDefinition;
-        // if current row index is one of the already-calculated widows height,
-        // we take this value, instead of calculating it a second time.
-        $h = $rowIndex !== null && isset($this->_widowsCalculatedHeight[$rowIndex])
-            ? $this->_widowsCalculatedHeight[$rowIndex]
-            : ($columns !== null ? $this->getCurrentRowHeight($columns) : $this->getColumnHeight());
-
-        $this->setRowHeight($h);
-    }
-
-    /**
-     * Browse all cells for this row to find which content has the max height.
-     * Then we can adapt the height of all the other cells of this line.
-     *
-     * @param array $row
-     * @return float
-     */
-    private function getCurrentRowHeight(array $row) {
-        // get the max height for this row
-        $h = $this->getColumnHeight();
-        $this->setRowHeight($h);
-        foreach ($this->columnDefinition as $key => $def) {
-            if (!isset($row[$key]) || !$def['isMultiLine']) {
-                continue;
-            }
-            $data = $row[$key];
-            if (is_callable($def['renderer'])) {
-                $data = $def['renderer']($this, $data, $row, true);
-            }
-            $plugin_data = $this->trigger(self::EV_ROW_HEIGHT_GET, [$key, $data, $row], true);
-            if ($plugin_data !== null) {
-                $data = $plugin_data;
-            }
-            // getNumLines doesn't care about HTML. To simulate carriage return,
-            // we replace <br> with \n. Any better idea? Transactions?
-            $data_to_check = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $data));
-            $nb = $this->pdf->getNumLines($data_to_check, $def['width'],
-                $def['reseth'], $def['autoPadding'],
-                $def['cellPadding'], $def['border']);
-
-            $hd = $nb * $h;
-            if ($hd > $this->getRowHeight()) {
-                $this->setRowHeight($hd);
-            }
+        $h = $this->trigger(self::EV_ROW_HEIGHT_GET_COPY, [$columns, $rowIndex], true);
+        if (!$h) {
+            $h = $columns !== null
+                ? $this->getCurrentRowHeight($columns)
+                : $this->getColumnHeight();
         }
-        return $this->getRowHeight();
+        $this->setRowHeight($h);
     }
 
 }

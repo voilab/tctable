@@ -20,22 +20,21 @@ class FitColumn implements Plugin {
     private $width;
 
     /**
-     * Determines whether or not the width will be recalculated each time we
-     * call  {@link TcTable::addBody()}
-     * @var bool
+     * Table max width. Default to page width minus margins
+     * @var float
      */
-    private $memorizeWidth;
+    private $maxWidth;
 
     /**
      * Plugin constructor
      *
      * @param string $columnIndex stretched column index
-     * @param bool $memorizeWidth FALSE to recalculate width each time
-     * {@link TcTable::addBody()} is called
+     * @param float $maxWidth table max width. Default to page width minus
+     * margins
      */
-    public function __construct($columnIndex, $memorizeWidth = true) {
+    public function __construct($columnIndex, $maxWidth = null) {
         $this->columnIndex = $columnIndex;
-        $this->memorizeWidth = $memorizeWidth;
+        $this->maxWidth = $maxWidth;
     }
 
     /**
@@ -46,14 +45,35 @@ class FitColumn implements Plugin {
     }
 
     /**
-     * Check the max width if the stretched column. This method is called just
+     * Reset width, so calculation will be re-executed
+     *
+     * @return FitColumn
+     */
+    public function resetWidth() {
+        $this->width = null;
+        return $this;
+    }
+
+    /**
+     * Set table max width. Default to page width minus margins
+     *
+     * @param float $width
+     * @return FitColumn
+     */
+    public function setMaxWidth($width) {
+        $this->maxWidth = $width;
+        return $this;
+    }
+
+    /**
+     * Check the max width of the stretched column. This method is called just
      * before we start to add data rows
      *
      * @param TcTable $table
      * @return void
      */
     public function setWidth(TcTable $table) {
-        if (!$this->width || !$this->memorizeWidth) {
+        if (!$this->width) {
             $widths = [];
             foreach ($table->getColumns() as $key => $column) {
                 $widths[$key] = $column['width'];
@@ -67,19 +87,21 @@ class FitColumn implements Plugin {
 
     /**
      * Get the remaining width available, taking into account margins and
-     * other cells width.
+     * other cells width or the specified maxwidth if any.
      *
      * @param TcTable $table
      * @param array|float $width sum of all other cells width
      * @return float
      */
     private function getRemainingColumnWidth(TcTable $table, $width) {
-        $content_width = $table->getMaxWidth();
-        if (!$content_width) {
+        if (!$this->maxWidth) {
             $margins = $table->getPdf()->getMargins();
             $content_width = $table->getPdf()->getPageWidth() - $margins['left'] - $margins['right'];
+        } else {
+            $content_width = $this->maxWidth;
         }
-        return $content_width - (is_array($width) ? array_sum($width) : $width);
+        $result = $content_width - (is_array($width) ? array_sum($width) : $width);
+        return $result > 0 ? $result : 0;
     }
 
 }

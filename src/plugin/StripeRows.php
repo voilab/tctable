@@ -20,12 +20,19 @@ class StripeRows implements Plugin {
     private $rowCurrentStripe;
 
     /**
+     * Disable plugin to avoid changing row background color
+     * @var bool
+     */
+    private $disabled;
+
+    /**
      * Plugin constructor
      *
      * @param bool $startFill true to start with a filled row
      */
     public function __construct($startFill) {
         $this->startFill = $startFill;
+        $this->disabled = false;
     }
 
     /**
@@ -35,6 +42,24 @@ class StripeRows implements Plugin {
         $table
             ->on(TcTable::EV_BODY_ADD, [$this, 'resetFill'])
             ->on(TcTable::EV_ROW_ADD, [$this, 'setFill']);
+    }
+
+    /**
+     * Enable background color stripe
+     *
+     * @return void
+     */
+    public function enable() {
+        $this->disabled = false;
+    }
+
+    /**
+     * Disable background color stripe
+     *
+     * @return void
+     */
+    public function disable() {
+        $this->disabled = true;
     }
 
     /**
@@ -55,7 +80,11 @@ class StripeRows implements Plugin {
      * @return void
      */
     public function setFill(TcTable $table) {
-        $fill = $this->rowCurrentStripe = !$this->rowCurrentStripe;
+        if ($this->disabled) {
+            $fill = false;
+        } else {
+            $fill = $this->rowCurrentStripe = !$this->rowCurrentStripe;
+        }
         foreach ($table->getRowDefinition() as $column => $row) {
             $table->setRowDefinition($column, 'fill', $row['fill'] ?: $fill);
         }
