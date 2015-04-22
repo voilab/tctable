@@ -37,7 +37,7 @@ class TcTable {
      * Event: before a row is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>array|object</i> <b>$row</b> row data</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain and to not draw the
@@ -49,7 +49,7 @@ class TcTable {
      * Event: after a row is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>array|object</i> <b>$row</b> row data</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain
@@ -62,7 +62,7 @@ class TcTable {
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
      *     <li><i>string</i> <b>$column</b> column string index</li>
      *     <li><i>mixed</i> <b>$data</b> the cell data</li>
-     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>array|object</i> <b>$row</b> row data</li>
      * </ul>
      * @return mixed the new data which will be used to calculate cell height
      * Stop event chain if value is not null.
@@ -106,7 +106,7 @@ class TcTable {
      *     <li><i>mixed</i> <b>$data</b> cell data</li>
      *     <li><i>array</i> <b>$definition</b> the row definition (that can
      *     be changed)</li>
-     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>array|object</i> <b>$row</b> row data</li>
      *     <li><i>bool</i> <b>$header</b> true if it's a header cell</li>
      * </ul>
      * @return mixed the data to set in the cell. Stop event chain if value is
@@ -122,7 +122,7 @@ class TcTable {
      *     <li><i>mixed</i> <b>$data</b> cell data</li>
      *     <li><i>array</i> <b>$definition</b> the row definition (that can
      *     be changed)</li>
-     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>array|object</i> <b>$row</b> row data</li>
      *     <li><i>bool</i> <b>$header</b> true if it's a header cell</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain
@@ -133,8 +133,8 @@ class TcTable {
      * Event: before a page break is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$row</b> row data if $widow = FALSE, the complete
-     *     set of rows if $widow = TRUE</li>
+     *     <li><i>array|object|Traversable</i> <b>$row</b> row data if $widow =
+     *     FALSE, the complete set of rows if $widow = TRUE</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      *     <li><i>bool</i> <b>$widow</b> TRUE if page is added because widows
      *     can't be drawn on the page (plugin), FALSE if it's only the current
@@ -148,8 +148,8 @@ class TcTable {
      * Event: après qu'un saut de page soit ajouté
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$row</b> row data if $widow = FALSE, the complete
-     *     set of rows if $widow = TRUE</li>
+     *     <li><i>array|object|Traversable</i> <b>$row</b> row data if $widow =
+     *     FALSE, the complete set of rows if $widow = TRUE</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      *     <li><i>bool</i> <b>$widow</b> TRUE if page is added because widows
      *     can't be drawn on the page (plugin), FALSE if it's only the current
@@ -163,7 +163,8 @@ class TcTable {
      * Event: before data rows are added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$rows</b> complete set of data rows</li>
+     *     <li><i>array|Traversable</i> <b>$rows</b> complete set of data
+     *     rows</li>
      *     <li><i>callable</i> <b>$fn</b> body user function</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain and not draw any row
@@ -174,7 +175,8 @@ class TcTable {
      * Event: after data rows are added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$rows</b> complete set of data rows</li>
+     *     <li><i>array|Traversable</i> <b>$rows</b> complete set of data
+     *     rows</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain
      */
@@ -184,7 +186,8 @@ class TcTable {
      * Event: after the body is skipped (no rows are drawn in the pdf)
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$rows</b> complete set of data rows</li>
+     *     <li><i>array|Traversable</i> <b>$rows</b> complete set of data
+     *     rows</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain
      */
@@ -194,7 +197,7 @@ class TcTable {
      * Event: after a row is skipped (it is not drawn in the pdf)
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>array|object</i> <b>$row</b> row data</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      * </ul>
      * @return void|bool Return FALSE to stop event chain
@@ -205,7 +208,7 @@ class TcTable {
      * Event: during copy of row definition, get row height
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
-     *     <li><i>array</i> <b>$row</b> row data</li>
+     *     <li><i>array|object</i> <b>$row</b> row data</li>
      *     <li><i>int</i> <b>$rowIndex</b> row index</li>
      * </ul>
      * @return void|float Return the height to set for the rowdefinition when
@@ -745,48 +748,21 @@ class TcTable {
     }
 
     /**
-     * Keep in memory the current row definition
-     *
-     * @return TcTable
-     */
-    public function stashRowDefinition() {
-        $this->rowDefinitionStash = [
-            'height' => $this->getRowHeight(),
-            'def' => $this->rowDefinition
-        ];
-        return $this;
-    }
-
-    /**
-     * Apply row definition stash. Stash is emptied afterwards.
-     *
-     * @return TcTable
-     */
-    public function applyRowDefinition() {
-        if ($this->rowDefinitionStash) {
-            $this->setRowHeight($this->rowDefinitionStash['height']);
-            $this->rowDefinition = $this->rowDefinitionStash['def'];
-        }
-        $this->rowDefinitionStash = null;
-        return $this;
-    }
-
-    /**
      * Browse all cells for this row to find which content has the max height.
      * Then we can adapt the height of all the other cells of this line.
      *
-     * @param array $row
+     * @param array|object $row
      * @return float
      */
-    public function getCurrentRowHeight(array $row) {
+    public function getCurrentRowHeight($row) {
         // get the max height for this row
         $h = $this->getColumnHeight();
         $this->setRowHeight($h);
         foreach ($this->columnDefinition as $key => $def) {
-            if (!isset($row[$key]) || !$def['isMultiLine']) {
+            if ((!isset($row[$key]) && !is_callable($def['renderer'])) || !$def['isMultiLine']) {
                 continue;
             }
-            $data = $row[$key];
+            $data = isset($row[$key]) ? $row[$key] : '';
             if (is_callable($def['renderer'])) {
                 $data = $def['renderer']($this, $data, $row, true);
             }
@@ -815,6 +791,9 @@ class TcTable {
      * @return TcTable
      */
     public function addHeader() {
+        $height =$this->getRowHeight();
+        $definition = $this->rowDefinition;
+
         $this->copyDefaultColumnDefinitions(null);
         if ($this->trigger(self::EV_HEADER_ADD) !== false) {
             foreach ($this->columnDefinition as $key => $def) {
@@ -822,6 +801,11 @@ class TcTable {
             }
             $this->trigger(self::EV_HEADER_ADDED);
         }
+        // reset row definition, because headers also copy their own column
+        // definition and override the data row definition already done before
+        // this method is called
+        $this->setRowHeight($height);
+        $this->rowDefinition = $definition;
         return $this;
     }
 
@@ -832,7 +816,7 @@ class TcTable {
      * The callable function structure is as follow:
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> the TcTable object</li>
-     *     <li><i>array</i> <b>$row</b> current row</li>
+     *     <li><i>array|object</i> <b>$row</b> current row</li>
      *     <li><i>bool</i> <b>$widow</b> TRUE if this method is called when
      *     parsing widows (from plugin plugin\Widows)</li>
      * </ul>
@@ -841,11 +825,11 @@ class TcTable {
      *     configured in the column definition</li>
      * </ul>
      *
-     * @param array $rows the complete set of data
+     * @param array|Traversable $rows the complete set of data
      * @param callable $fn data layout function
      * @return TcTable
      */
-    public function addBody(array $rows, callable $fn = null) {
+    public function addBody($rows, callable $fn = null) {
         // last column will have TRUE for the TCPDF [ln] property
         end($this->columnDefinition);
         $this->columnDefinition[key($this->columnDefinition)]['ln'] = true;
@@ -854,8 +838,8 @@ class TcTable {
         $bmargin = $this->pdf->getMargins()['bottom'];
         $this->pdf->SetAutoPageBreak(false, $this->bottomMargin);
         if ($this->trigger(self::EV_BODY_ADD, [$rows, $fn]) === false) {
-            $this->endBody($auto_pb, $bmargin);
             $this->trigger(self::EV_BODY_SKIPPED, [$rows]);
+            $this->endBody($auto_pb, $bmargin);
             return $this;
         }
         if ($this->showHeader) {
@@ -865,7 +849,7 @@ class TcTable {
             $data = $fn ? $fn($this, $row, false) : $row;
             // draw row only if it's an array. It gives the possibility to skip
             // some rows with the user func
-            if (is_array($data)) {
+            if (is_array($data) || is_object($data)) {
                 $this->addRow($data, $index);
             } else {
                 $this->trigger(self::EV_ROW_SKIPPED, [$row, $index]);
@@ -879,17 +863,15 @@ class TcTable {
     /**
      * Add a row
      *
-     * @param array $row row data
+     * @param array|object $row row data
      * @param int $index row index
      * @return TcTable
      */
-    private function addRow(array $row, $index = null) {
+    private function addRow($row, $index = null) {
         $this->copyDefaultColumnDefinitions($row, $index);
         if ($this->trigger(self::EV_ROW_ADD, [$row, $index]) === false) {
             return $this;
         }
-        $this->stashRowDefinition();
-
         $h = current($this->rowDefinition)['height'];
         $page_break_trigger = $this->pdf->getPageHeight() - $this->pdf->getBreakMargin();
         if ($this->pdf->GetY() + $h >= $page_break_trigger) {
@@ -897,13 +879,11 @@ class TcTable {
                 $this->pdf->AddPage();
                 $this->trigger(self::EV_PAGE_ADDED, [$row, $index, false]);
             }
-            // reset row definition, because in the event, plugins may have
-            // chosen to draw headers, so the row definition will have changed.
-            $this->applyRowDefinition();
         }
-
         foreach ($this->columnDefinition as $key => $value) {
-            $this->addCell($key, isset($row[$key]) ? $row[$key] : '', $row);
+            if (isset($this->rowDefinition[$key])) {
+                $this->addCell($key, isset($row[$key]) ? $row[$key] : '', $row);
+            }
         }
         $this->trigger(self::EV_ROW_ADDED, [$row, $index]);
         return $this;
@@ -914,14 +894,11 @@ class TcTable {
      *
      * @param string $column column string index
      * @param mixed $data data to draw inside the cell
-     * @param array $row all datas for this line
+     * @param array|object $row all datas for this line
      * @param bool $header true if we draw header cell
      * @return TcTable
      */
-    private function addCell($column, $data, array $row, $header = false) {
-        if (!isset($this->rowDefinition[$column])) {
-            return;
-        }
+    private function addCell($column, $data, $row, $header = false) {
         $c = $this->rowDefinition[$column];
         if (!$header && is_callable($c['renderer'])) {
             $data = $c['renderer']($this, $data, $row, false);
@@ -977,11 +954,11 @@ class TcTable {
      * Usefull for plugins that need to temporarily, for one precise row, to
      * change column information (like background color, border, etc)
      *
-     * @param array $columns row datas (for each cell)
+     * @param array|object $columns row datas (for each cell)
      * @param int $rowIndex row index
      * @return void
      */
-    private function copyDefaultColumnDefinitions(array $columns = null, $rowIndex = null) {
+    private function copyDefaultColumnDefinitions($columns = null, $rowIndex = null) {
         $this->rowDefinition = $this->columnDefinition;
         $h = $this->trigger(self::EV_ROW_HEIGHT_GET_COPY, [$columns, $rowIndex], true);
         if (!$h) {

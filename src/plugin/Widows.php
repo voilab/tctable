@@ -92,11 +92,11 @@ class Widows implements Plugin {
      * Called before body is added. Configure everything about widows
      *
      * @param TcTable $table
-     * @param array $rows
+     * @param array|Traversable $rows
      * @param callable $fn
      * @return void
      */
-    public function initialize(TcTable $table, array $rows, callable $fn = null) {
+    public function initialize(TcTable $table, $rows, callable $fn = null) {
         $this->_widowsCalculatedHeight = [];
         $this->height = $this->getCalculatedWidowsHeight($table, $rows, $fn);
         $this->count = count($rows);
@@ -129,11 +129,11 @@ class Widows implements Plugin {
      * height, instead of calculating it a second time
      *
      * @param TcTable $table
-     * @param array $row
+     * @param array|object $row
      * @param int $rowIndex
      * @return float
      */
-    public function onRowHeightGetCopy(TcTable $table, array $row = null, $rowIndex = null) {
+    public function onRowHeightGetCopy(TcTable $table, $row = null, $rowIndex = null) {
         // if current row index is one of the already-calculated widows height,
         // we take this value, instead of calculating it a second time.
         if ($rowIndex !== null && isset($this->_widowsCalculatedHeight[$rowIndex])) {
@@ -146,12 +146,11 @@ class Widows implements Plugin {
      * account. If not, a page add event is triggered
      *
      * @param TcTable $table
-     * @param array $row
+     * @param array|object $row
      * @param int $rowIndex
      * @return void
      */
-    public function checkAvailableHeight(TcTable $table, array $row, $rowIndex) {
-        $table->stashRowDefinition();
+    public function checkAvailableHeight(TcTable $table, $row, $rowIndex) {
         $pdf = $table->getPdf();
         // if the remaining widows can't be drawn on this current page, we
         // need to force to add a new page.
@@ -160,9 +159,6 @@ class Widows implements Plugin {
                 $pdf->AddPage();
                 $table->trigger(TcTable::EV_PAGE_ADDED, [$this->rows, $rowIndex, true]);
             }
-            // reset row definition, because in the event, plugins may have
-            // chosen to draw headers, so the row definition will have changed.
-            $table->applyRowDefinition();
         }
     }
 
@@ -171,7 +167,7 @@ class Widows implements Plugin {
      * remaining height isn't enough to draw all the widows on the current page.
      *
      * @param TcTable $table
-     * @param array $rows the complete set of data
+     * @param array|Traversable $rows the complete set of data
      * @param callable $fn addBody function for data layout
      * @return float
      */
@@ -189,7 +185,7 @@ class Widows implements Plugin {
                 $data = $fn ? $fn($table, $rows[$i], true) : $rows[$i];
                 // check row only if it's an array. It gives the possibility to
                 // skip some rows with the user func
-                if (is_array($data)) {
+                if (is_array($data) || is_object($data)) {
                     $this->_widowsCalculatedHeight[$i] = $table->getCurrentRowHeight($data);
                     $h += $this->_widowsCalculatedHeight[$i];
                 } else {
