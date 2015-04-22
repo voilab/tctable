@@ -151,7 +151,6 @@ class Widows implements Plugin {
      * @return void
      */
     public function checkAvailableHeight(TcTable $table, $row, $rowIndex) {
-        $table->stashRowDefinition();
         $pdf = $table->getPdf();
         // if the remaining widows can't be drawn on this current page, we
         // need to force to add a new page.
@@ -160,9 +159,6 @@ class Widows implements Plugin {
                 $pdf->AddPage();
                 $table->trigger(TcTable::EV_PAGE_ADDED, [$this->rows, $rowIndex, true]);
             }
-            // reset row definition, because in the event, plugins may have
-            // chosen to draw headers, so the row definition will have changed.
-            $table->applyRowDefinition();
         }
     }
 

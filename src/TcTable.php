@@ -748,33 +748,6 @@ class TcTable {
     }
 
     /**
-     * Keep in memory the current row definition
-     *
-     * @return TcTable
-     */
-    public function stashRowDefinition() {
-        $this->rowDefinitionStash = [
-            'height' => $this->getRowHeight(),
-            'def' => $this->rowDefinition
-        ];
-        return $this;
-    }
-
-    /**
-     * Apply row definition stash. Stash is emptied afterwards.
-     *
-     * @return TcTable
-     */
-    public function applyRowDefinition() {
-        if ($this->rowDefinitionStash) {
-            $this->setRowHeight($this->rowDefinitionStash['height']);
-            $this->rowDefinition = $this->rowDefinitionStash['def'];
-        }
-        $this->rowDefinitionStash = null;
-        return $this;
-    }
-
-    /**
      * Browse all cells for this row to find which content has the max height.
      * Then we can adapt the height of all the other cells of this line.
      *
@@ -818,6 +791,9 @@ class TcTable {
      * @return TcTable
      */
     public function addHeader() {
+        $height =$this->getRowHeight();
+        $definition = $this->rowDefinition;
+
         $this->copyDefaultColumnDefinitions(null);
         if ($this->trigger(self::EV_HEADER_ADD) !== false) {
             foreach ($this->columnDefinition as $key => $def) {
@@ -825,6 +801,11 @@ class TcTable {
             }
             $this->trigger(self::EV_HEADER_ADDED);
         }
+        // reset row definition, because headers also copy their own column
+        // definition and override the data row definition already done before
+        // this method is called
+        $this->setRowHeight($height);
+        $this->rowDefinition = $definition;
         return $this;
     }
 
@@ -868,7 +849,7 @@ class TcTable {
             $data = $fn ? $fn($this, $row, false) : $row;
             // draw row only if it's an array. It gives the possibility to skip
             // some rows with the user func
-            if (is_array($data)) {
+            if (is_array($data) || is_object($data)) {
                 $this->addRow($data, $index);
             } else {
                 $this->trigger(self::EV_ROW_SKIPPED, [$row, $index]);
@@ -891,8 +872,6 @@ class TcTable {
         if ($this->trigger(self::EV_ROW_ADD, [$row, $index]) === false) {
             return $this;
         }
-        $this->stashRowDefinition();
-
         $h = current($this->rowDefinition)['height'];
         $page_break_trigger = $this->pdf->getPageHeight() - $this->pdf->getBreakMargin();
         if ($this->pdf->GetY() + $h >= $page_break_trigger) {
@@ -900,11 +879,7 @@ class TcTable {
                 $this->pdf->AddPage();
                 $this->trigger(self::EV_PAGE_ADDED, [$row, $index, false]);
             }
-            // reset row definition, because in the event, plugins may have
-            // chosen to draw headers, so the row definition will have changed.
-            $this->applyRowDefinition();
         }
-
         foreach ($this->columnDefinition as $key => $value) {
             if (isset($this->rowDefinition[$key])) {
                 $this->addCell($key, isset($row[$key]) ? $row[$key] : '', $row);
