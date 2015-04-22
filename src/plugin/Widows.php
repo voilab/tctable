@@ -185,7 +185,7 @@ class Widows implements Plugin {
                 $data = $fn ? $fn($table, $rows[$i], true) : $rows[$i];
                 // check row only if it's an array. It gives the possibility to
                 // skip some rows with the user func
-                if (is_array($data)) {
+                if (is_array($data) || is_object($data)) {
                     $this->_widowsCalculatedHeight[$i] = $table->getCurrentRowHeight($data);
                     $h += $this->_widowsCalculatedHeight[$i];
                 } else {
