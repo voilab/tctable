@@ -228,7 +228,7 @@ class TcTable {
      * \TCPDF::SetAutoPageBreak())
      * @var float
      */
-    private $bottomMargin = 0;
+    private $bottomMargin;
 
     /**
      * Default columns definitions
@@ -281,22 +281,20 @@ class TcTable {
     private $rowHeight;
 
     /**
-     * Row definition stash
-     * @var array
-     */
-    private $rowDefinitionStash;
-
-    /**
      * Constructor. Get the TCPDF instance as first argument. We MUST define
      * {@link TcTable::setBottomMargin()} if we want consistent page breaks
      *
      * @param \TCPDF $pdf
      * @param float $minColumnHeight min height for each content row
+     * @param float $bottomMargin bottom margin height (default to the one
+     * setted via \TCPDF::SetAutoPageBreak($break, $marginBottom)
      */
-    public function __construct(\TCPDF $pdf, $minColumnHeight) {
+    public function __construct(\TCPDF $pdf, $minColumnHeight, $bottomMargin = null) {
         $this->pdf = $pdf;
         $this->columnHeight = $minColumnHeight;
-        $this->bottomMargin = $pdf->getMargins()['bottom'];
+        $this->bottomMargin = $bottomMargin !== null
+            ? $bottomMargin
+            : $pdf->getMargins()['bottom'];
     }
 
     /**
@@ -791,7 +789,7 @@ class TcTable {
      * @return TcTable
      */
     public function addHeader() {
-        $height =$this->getRowHeight();
+        $height = $this->getRowHeight();
         $definition = $this->rowDefinition;
 
         $this->copyDefaultColumnDefinitions(null);
@@ -817,6 +815,7 @@ class TcTable {
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> the TcTable object</li>
      *     <li><i>array|object</i> <b>$row</b> current row</li>
+     *     <li><i>int</i> <b>$index</b> current row index</li>
      *     <li><i>bool</i> <b>$widow</b> TRUE if this method is called when
      *     parsing widows (from plugin plugin\Widows)</li>
      * </ul>
@@ -846,7 +845,7 @@ class TcTable {
             $this->addHeader();
         }
         foreach ($rows as $index => $row) {
-            $data = $fn ? $fn($this, $row, false) : $row;
+            $data = $fn ? $fn($this, $row, $index, false) : $row;
             // draw row only if it's an array. It gives the possibility to skip
             // some rows with the user func
             if (is_array($data) || is_object($data)) {
@@ -915,8 +914,9 @@ class TcTable {
             // vertical alignment can work
             $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
                 $c['align'], $c['fill'], $c['ln'], $c['x'], $c['y'], $c['reseth'],
-                $c['stretch'], $c['isHtml'], $c['autoPadding'], $c['maxh'] === null ? $h : $c['maxh'],
-                $c['valign'], $c['fitcell']);
+                $c['stretch'], $c['isHtml'], $c['autoPadding'],
+                $c['maxh'] === null ? $h : $c['maxh'], $c['valign'],
+                $c['fitcell']);
         } elseif ($c['isImage']) {
             $this->pdf->Image($data, $this->pdf->GetX() + $c['x'],
                 $this->pdf->GetY() + $c['y'], $c['width'], $h,
