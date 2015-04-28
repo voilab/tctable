@@ -53,7 +53,7 @@ $tctable->setColumns([
 // get rows data
 $rows = getMyDatas();
 
-$tctable->addBody($rows, function (\voilab\tctable\TcTable $table, $row) {
+$tctable->addBody($rows, function (\voilab\tctable\TcTable $table, \Obj $row) {
     $change_rate = 0.8;
     // map row data to TcTable column definitions
     return [
@@ -83,6 +83,18 @@ $tctable
 $tctable
     // set true to have the first line with colored background
     ->addPlugin(\voilab\tctable\plugin\StripeRows(true));
+```
+
+### Widows management
+```php
+// set the minimum elements you want to see on the last page (if any)
+$nb = 4;
+// set a footer margin. Useful when you have lot of lines, and a total as the
+// last one. If you want the total to appears at least with 4 lines, you have
+// to add to the pageBreakTrigger margin this line height: the footer
+$mFooter = 10; // i.e: mm
+
+$tctable->addPlugin(\voilab\tctable\plugin\Widows($nb, $mFooter));
 ```
 
 ### Custom events
@@ -191,7 +203,7 @@ calculation. You need to take that into account in certain cases.
 
 ```php
 $total = 0;
-$tctable->addBody($rows, function (TcTable $t, $row, $isHeightCalculation) use (&$total) {
+$tctable->addBody($rows, function (TcTable $t, $row, $index, $isHeightCalculation) use (&$total) {
     // if $height is true, it means this method is called when height
     // calculation is running. If we want to do a sum, we check first if
     // $isHeightCalculation is false, so it means the func is called during row

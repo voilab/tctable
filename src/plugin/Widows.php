@@ -154,7 +154,7 @@ class Widows implements Plugin {
         $pdf = $table->getPdf();
         // if the remaining widows can't be drawn on this current page, we
         // need to force to add a new page.
-        if ($rowIndex + $this->minWidowsOnPage >= $this->count && $pdf->GetY() + $this->height >= $this->pageBreakTrigger) {
+        if ($rowIndex + $this->minWidowsOnPage == $this->count && $pdf->GetY() + $this->height >= $this->pageBreakTrigger) {
             if ($table->trigger(TcTable::EV_PAGE_ADD, [$this->rows, $rowIndex, true]) !== false) {
                 $pdf->AddPage();
                 $table->trigger(TcTable::EV_PAGE_ADDED, [$this->rows, $rowIndex, true]);
@@ -182,7 +182,7 @@ class Widows implements Plugin {
                 if (!isset($rows[$i])) {
                     return $h;
                 }
-                $data = $fn ? $fn($table, $rows[$i], true) : $rows[$i];
+                $data = $fn ? $fn($table, $rows[$i], $i, true) : $rows[$i];
                 // check row only if it's an array. It gives the possibility to
                 // skip some rows with the user func
                 if (is_array($data) || is_object($data)) {
