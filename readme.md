@@ -244,6 +244,29 @@ $tctable
 echo sprintf('Total: %d', $total);
 ```
 
+### Optimizations
+You can optimize the workflow if you know exactly the height of each row. You
+can bypass the height calculation this way:
+```php
+$tctable->on(TcTable::EV_ROW_HEIGHT_GET, function (TcTable $t, $row, $index) {
+    return 6.4; // or null for default calculation
+});
+```
+
+If you want to change the way cell's height is calculated, you can override the
+default behaviour this way:
+```php
+$tctable->on(TcTable::EV_CELL_HEIGHT_GET, function (TcTable $t, $column, $data, $row) {
+    if ($column == 'specialColumn') {
+        return 12.8;
+    }
+    // use default calculation
+    return null;
+});
+```
+> Remember that only multiline cells are checked for their height. The others
+> aren't taken in the process.
+
 ### To do
 Image insertion is extremely experimental...
 

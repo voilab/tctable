@@ -64,10 +64,10 @@ class TcTable {
      *     <li><i>mixed</i> <b>$data</b> the cell data</li>
      *     <li><i>array|object</i> <b>$row</b> row data</li>
      * </ul>
-     * @return mixed the new data which will be used to calculate cell height
+     * @return void|float the cell's height. Stop event chain if not null
      * Stop event chain if value is not null.
      */
-    const EV_ROW_HEIGHT_GET = 3;
+    const EV_CELL_HEIGHT_GET = 3;
 
     /**
      * Event: before headers are added
@@ -215,7 +215,7 @@ class TcTable {
      * values are copied from default column definition to current row. If not
      * null, will stop event chain
      */
-    const EV_ROW_HEIGHT_GET_COPY = 15;
+    const EV_ROW_HEIGHT_GET = 15;
 
     /**
      * The TCPDF instance
@@ -764,18 +764,17 @@ class TcTable {
             if (is_callable($def['renderer'])) {
                 $data = $def['renderer']($this, $data, $row, true);
             }
-            $plugin_data = $this->trigger(self::EV_ROW_HEIGHT_GET, [$key, $data, $row], true);
-            if ($plugin_data !== null) {
-                $data = $plugin_data;
-            }
-            // getNumLines doesn't care about HTML. To simulate carriage return,
-            // we replace <br> with \n. Any better idea? Transactions?
-            $data_to_check = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $data));
-            $nb = $this->pdf->getNumLines($data_to_check, $def['width'],
-                $def['reseth'], $def['autoPadding'],
-                $def['cellPadding'], $def['border']);
+            $hd = $this->trigger(self::EV_CELL_HEIGHT_GET, [$key, $data, $row], true);
+            if ($hd === null) {
+                // getNumLines doesn't care about HTML. To simulate carriage return,
+                // we replace <br> with \n. Any better idea? Transactions?
+                $data_to_check = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $data));
+                $nb = $this->pdf->getNumLines($data_to_check, $def['width'],
+                    $def['reseth'], $def['autoPadding'],
+                    $def['cellPadding'], $def['border']);
 
-            $hd = $nb * $h;
+                $hd = $nb * $h;
+            }
             if ($hd > $this->getRowHeight()) {
                 $this->setRowHeight($hd);
             }
@@ -960,7 +959,7 @@ class TcTable {
      */
     private function copyDefaultColumnDefinitions($columns = null, $rowIndex = null) {
         $this->rowDefinition = $this->columnDefinition;
-        $h = $this->trigger(self::EV_ROW_HEIGHT_GET_COPY, [$columns, $rowIndex], true);
+        $h = $this->trigger(self::EV_ROW_HEIGHT_GET, [$columns, $rowIndex], true);
         if (!$h) {
             $h = $columns !== null
                 ? $this->getCurrentRowHeight($columns)
