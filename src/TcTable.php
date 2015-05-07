@@ -64,8 +64,7 @@ class TcTable {
      *     <li><i>mixed</i> <b>$data</b> the cell data</li>
      *     <li><i>array|object</i> <b>$row</b> row data</li>
      * </ul>
-     * @return void|float the cell's height. Stop event chain if not null
-     * Stop event chain if value is not null.
+     * @return void|float the cell's height. Stop event chain if not null.
      */
     const EV_CELL_HEIGHT_GET = 3;
 
@@ -109,8 +108,8 @@ class TcTable {
      *     <li><i>array|object</i> <b>$row</b> row data</li>
      *     <li><i>bool</i> <b>$header</b> true if it's a header cell</li>
      * </ul>
-     * @return mixed the data to set in the cell. Stop event chain if value is
-     * not null
+     * @return void|bool Return FALSE to stop event chain and set the displayed
+     * data to an empty string
      */
     const EV_CELL_ADD = 7;
 
@@ -380,12 +379,12 @@ class TcTable {
      * Frequently used Cell and MultiCell options:
      * <ul>
      *     <li><i>callable</i> <b>renderer</b>: renderer function for datas.
-     *     Recieve (TcTable $table, $data, array $columns, $height). The last
+     *     Recieve (TcTable $table, $data, $row, $column $height). The last
      *     parameter is TRUE when called during height calculation. This method
      *     is called twice, one time for cell height calculation and one time
      *     for data drawing.</li>
      *     <li><i>callable</i> <b>headerRenderer</b>: renderer function for
-     *     headers. Recieve (TcTable $table, $data, array $columns)</li>
+     *     headers. Recieve (TcTable $table, $data, $row, $column)</li>
      *     <li><i>string</i> <b>header</b>: column header text</li>
      *     <li><i>float</i> <b>width</b>: column width</li>
      *     <li><i>string</i> <b>border</b>: cell border (LTBR)</li>
@@ -899,13 +898,12 @@ class TcTable {
     private function addCell($column, $data, $row, $header = false) {
         $c = $this->rowDefinition[$column];
         if (!$header && is_callable($c['renderer'])) {
-            $data = $c['renderer']($this, $data, $row, false);
+            $data = $c['renderer']($this, $data, $row, $column, false);
         } elseif ($header && is_callable($c['headerRenderer'])) {
-            $data = $c['headerRenderer']($this, $data, $row);
+            $data = $c['headerRenderer']($this, $data, $row, $column, false);
         }
-        $plugin_data = $this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header], true);
-        if ($plugin_data !== null) {
-            $data = $plugin_data;
+        if ($this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header]) === false) {
+            $data = '';
         }
         $h = $this->getRowHeight();
         if ($c['isMultiLine']) {

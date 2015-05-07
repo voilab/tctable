@@ -51,9 +51,9 @@ $tctable->setColumns([
 ]);
 
 // get rows data
-$rows = getMyDatas();
+$rows = getMyDatasAsMyObjs();
 
-$tctable->addBody($rows, function (\voilab\tctable\TcTable $table, \Obj $row) {
+$tctable->addBody($rows, function (\voilab\tctable\TcTable $table, \MyObj $row) {
     $change_rate = 0.8;
     // map row data to TcTable column definitions
     return [
@@ -66,10 +66,11 @@ $tctable->addBody($rows, function (\voilab\tctable\TcTable $table, \Obj $row) {
 $pdf->Output('tctable.pdf', 'I');
 ```
 
-### Have a column that fit the remaining page width
+### Plugins
+#### Have a column that fit the remaining page width
 ```php
 $tctable
-    ->addPlugin(\voilab\tctable\plugin\FitColumn('text'))
+    ->addPlugin(new \voilab\tctable\plugin\FitColumn('text'))
     ->addColumn('text', [
         'isMultiLine' => true,
         'header' => 'Text'
@@ -78,14 +79,14 @@ $tctable
     ]);
 ```
 
-### Stripe rows
+#### Stripe rows
 ```php
 $tctable
     // set true to have the first line with colored background
-    ->addPlugin(\voilab\tctable\plugin\StripeRows(true));
+    ->addPlugin(new \voilab\tctable\plugin\StripeRows(true));
 ```
 
-### Widows management
+#### Widows management
 ```php
 // set the minimum elements you want to see on the last page (if any)
 $nb = 4;
@@ -94,31 +95,7 @@ $nb = 4;
 // to add to the pageBreakTrigger margin this line height: the footer
 $mFooter = 10; // i.e: mm
 
-$tctable->addPlugin(\voilab\tctable\plugin\Widows($nb, $mFooter));
-```
-
-### Custom events
-TcTable triggers some events we can listen to. It allows us to add some
-usefull methods.
-
-#### Add headers on each new page
-```php
-use \voilab\tctable\TcTable;
-// ... create tctable
-
-$tctable
-    // when a page is added, draw headers
-    ->on(TcTable::EV_PAGE_ADDED, function(TcTable $t) {
-        $t->addHeader();
-    })
-    // just before headers are drawn, set font style to bold
-    ->on(TcTable::EV_HEADER_ADD, function(TcTable $t) {
-        $t->getPdf()->SetFont('', 'B');
-    })
-    // after headers are drawn, reset the font style
-    ->on(TcTable::EV_HEADER_ADDED, function(TcTable $t) {
-        $t->getPdf()->SetFont('', '');
-    });
+$tctable->addPlugin(new \voilab\tctable\plugin\Widows($nb, $mFooter));
 ```
 
 #### Advanced plugin: draw a subtotal for a column at end of each page
@@ -191,7 +168,32 @@ class Report implements Plugin {
 ```
 And the TcTable
 ```php
-$tctable->addPlugin(\your\namespace\Report('total'));
+$tctable->addPlugin(new \your\namespace\Report('total'));
+```
+
+### Custom events
+TcTable triggers some events we can listen to. Plugins use them a lot. But you
+can simply define events without the need of plugins. It allows us to add some
+usefull methods.
+
+#### Add headers on each new page
+```php
+use \voilab\tctable\TcTable;
+// ... create tctable
+
+$tctable
+    // when a page is added, draw headers
+    ->on(TcTable::EV_PAGE_ADDED, function(TcTable $t) {
+        $t->addHeader();
+    })
+    // just before headers are drawn, set font style to bold
+    ->on(TcTable::EV_HEADER_ADD, function(TcTable $t) {
+        $t->getPdf()->SetFont('', 'B');
+    })
+    // after headers are drawn, reset the font style
+    ->on(TcTable::EV_HEADER_ADDED, function(TcTable $t) {
+        $t->getPdf()->SetFont('', '');
+    });
 ```
 
 ### Renderer and body functions
@@ -267,7 +269,7 @@ $tctable->on(TcTable::EV_CELL_HEIGHT_GET, function (TcTable $t, $column, $data, 
 > Remember that only multiline cells are checked for their height. The others
 > aren't taken in the process.
 
-### To do
+## To do
 Image insertion is extremely experimental...
 
 ## Testing
