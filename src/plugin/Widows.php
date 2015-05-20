@@ -15,7 +15,7 @@ class Widows implements Plugin {
 
     /**
      * Height we need to display all widows on the same page
-     * @var flat
+     * @var float
      */
     private $height;
 
@@ -41,7 +41,7 @@ class Widows implements Plugin {
      * Table footer height
      * @var float
      */
-    private $footerHeight = 0;
+    private $footerHeight;
 
     /**
      * When addBody is called, we calculate widows height so we can check if
@@ -72,7 +72,7 @@ class Widows implements Plugin {
             ->on(TcTable::EV_BODY_ADD, [$this, 'initialize'])
             ->on(TcTable::EV_ROW_ADD, [$this, 'checkAvailableHeight'])
             ->on(TcTable::EV_ROW_SKIPPED, [$this, 'onRowSkipped'])
-            ->on(TcTable::EV_ROW_HEIGHT_GET_COPY, [$this, 'onRowHeightGetCopy'])
+            ->on(TcTable::EV_ROW_HEIGHT_GET, [$this, 'onRowHeightGet'])
             ->on(TcTable::EV_BODY_ADDED, [$this, 'purge']);
     }
 
@@ -81,10 +81,21 @@ class Widows implements Plugin {
      * footer is alone on the last page and it's not what we want.
      *
      * @param float $height
-     * @return TcTable
+     * @return Widows
      */
     public function setFooterHeight($height) {
         $this->footerHeight = $height;
+        return $this;
+    }
+
+    /**
+     * Set the minimum number of rows we want on the last page. 0 = no check
+     *
+     * @param int $min widows number
+     * @return Widows
+     */
+    public function setMinWidowsOnPage($min) {
+        $this->minWidowsOnPage = $min;
         return $this;
     }
 
@@ -133,7 +144,7 @@ class Widows implements Plugin {
      * @param int $rowIndex
      * @return float
      */
-    public function onRowHeightGetCopy(TcTable $table, $row = null, $rowIndex = null) {
+    public function onRowHeightGet(TcTable $table, $row = null, $rowIndex = null) {
         // if current row index is one of the already-calculated widows height,
         // we take this value, instead of calculating it a second time.
         if ($rowIndex !== null && isset($this->_widowsCalculatedHeight[$rowIndex])) {
