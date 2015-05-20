@@ -396,6 +396,8 @@ class TcTable {
      * <ul>
      *     <li><i>bool</i> <b>isMultiLine</b>: true tell this is a multiline
      *     column</li>
+     *     <li><i>bool</i> <b>isMultiLineHeader</b>: true tell this is a header
+     *     multiline</li>
      *     <li><i>bool</i> <b>isHtml</b>: true to tell that this is HTML
      *     content</li>
      * </ul>
@@ -449,6 +451,7 @@ class TcTable {
         // column.
         $this->columnDefinition[$column] = array_merge([
             'isMultiLine' => false,
+            'isMultiLineHeader' => false,
             'isImage' => false,
             'renderer' => null,
             'headerRenderer' => null,
@@ -906,7 +909,7 @@ class TcTable {
             $data = '';
         }
         $h = $this->getRowHeight();
-        if ($c['isMultiLine']) {
+        if ($c['isMultiLine'] || ($header && $c['isMultiLineHeader'])) {
             // for multicell, if maxh = null, set it to cell's height, so
             // vertical alignment can work
             $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
