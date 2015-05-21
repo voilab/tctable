@@ -269,8 +269,23 @@ $tctable->on(TcTable::EV_CELL_HEIGHT_GET, function (TcTable $t, $column, $data, 
 > Remember that only multiline cells are checked for their height. The others
 > aren't taken in the process.
 
-## To do
-Image insertion is extremely experimental...
+### Custom drawing function
+If you need to insert images or need to do very specific things with cell's
+drawing, you can bypass the normal drawing function this way:
+```php
+$tctable->addColumn('special', [
+    'header' => "Special column",
+    'width' => 15,
+    'drawFn' => function (TcTable $t, $data, array $definition, $column, $row) {
+        $t->getPdf()->Image(); //configure TCPDF Image method your way
+        // return false to draw the cell normally, if there's no image to
+        // display, for example
+    },
+    'drawHeaderFn' => function (TcTable $t, $data, array $definition, $column, $row) {
+        // same comments as above
+    }
+]);
+```
 
 ## Testing
 No test currently written...

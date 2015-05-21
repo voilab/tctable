@@ -373,8 +373,8 @@ class TcTable {
     }
 
     /**
-     * Define a column. Config array is mostly what we find in \TCPDF Cell,
-     * MultiCell and Image.
+     * Define a column. Config array is mostly what we find in \TCPDF Cell and
+     * MultiCell.
      *
      * Frequently used Cell and MultiCell options:
      * <ul>
@@ -402,23 +402,16 @@ class TcTable {
      *     content</li>
      * </ul>
      *
-     * Image options (experimental)
-     * <ul>
-     *     <li><i>bool</i> <b>isImage</b>: tells this cell is an image</li>
-     *     <li><i>string</i> <b>type</b>: JPEG or PNG</li>
-     *     <li><i>bool</i> <b>resize</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>int</i> <b>dpi</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>string</i> <b>palign</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>isMask</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>mixed</i> <b>imgMask</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>hidden</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>fitOnPage</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>bool</i> <b>alt</b>: see doc {@link \TCPDF::Image}</li>
-     *     <li><i>array</i> <b>altImgs</b>: see doc {@link \TCPDF::Image}</li>
-     * </ul>
-     *
      * All other options available:
      * <ul>
+     *     <li><i>callable</i> <b>drawFn</b>: a callable function that will draw
+     *     the cell/multicell/image or anything else. The func receive as args
+     *     (TcTable $table, mixed $data, array $columnDefinition,
+     *     string $column, array|object $row)</li>
+     *     <li><i>callable</i> <b>drawHeaderFn</b>: a callable function that
+     *     will draw the cell/multicell/image or anything else. The func receive
+     *     as args (TcTable $table, mixed $data, array $columnDefinition,
+     *     string $column, array|object $row)</li>
      *     <li><i>float</i> <b>height</b>: min height for cell (default to
      *     {@link setColumnHeight()}</li>
      *     <li><i>bool</i> <b>ln</b>: managed by TcTable. This option is
@@ -456,6 +449,8 @@ class TcTable {
             'renderer' => null,
             'headerRenderer' => null,
             'header' => '',
+            'drawFn' => null,
+            'drawHeaderFn' => null,
             // cell
             'width' => 10,
             'height' => $this->getColumnHeight(),
@@ -476,17 +471,6 @@ class TcTable {
             'maxh' => null,
             'autoPadding' => true,
             'fitcell' => false,
-            // images
-            'type' => '',
-            'resize' => false,
-            'dpi' => 300,
-            'palign' => '',
-            'isMask' => false,
-            'imgMask' => false,
-            'hidden' => false,
-            'fitOnPage' => false,
-            'alt' => false,
-            'altImgs' => [],
             // getNumLines
             'cellPadding' => ''
         ], $this->defaultColumnDefinition, $definition);
@@ -726,13 +710,20 @@ class TcTable {
     /**
      * Set a custom configuration for one specific cell in the current row.
      *
-     * @param string $column column string index
+     * @param string|null $column column string index. If null, the definition
+     * will be set for all columns
      * @param string $definition specific configuration (border, etc.)
      * @param mixed $value value ('LBR' for border, etc.)
      * @return TcTable
      */
     public function setRowDefinition($column, $definition, $value) {
-        $this->rowDefinition[$column][$definition] = $value;
+        if ($column === null) {
+            foreach ($this->columnDefinition as $key => $v) {
+                $this->rowDefinition[$key][$definition] = $value;
+            }
+        } else {
+            $this->rowDefinition[$column][$definition] = $value;
+        }
         return $this;
     }
 
@@ -908,27 +899,28 @@ class TcTable {
         if ($this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header]) === false) {
             $data = '';
         }
+        $result = false;
+        if (!$header && is_callable($c['drawFn'])) {
+            $result = $c['drawFn']($this, $data, $c, $column, $row);
+        } elseif ($header && is_callable($c['drawHeaderFn'])) {
+            $result = $c['drawHeaderFn']($this, $data, $c, $column, $row);
+        }
         $h = $this->getRowHeight();
-        if ($c['isMultiLine'] || ($header && $c['isMultiLineHeader'])) {
-            // for multicell, if maxh = null, set it to cell's height, so
-            // vertical alignment can work
-            $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
-                $c['align'], $c['fill'], $c['ln'], $c['x'], $c['y'], $c['reseth'],
-                $c['stretch'], $c['isHtml'], $c['autoPadding'],
-                $c['maxh'] === null ? $h : $c['maxh'], $c['valign'],
-                $c['fitcell']);
-        } elseif ($c['isImage']) {
-            $this->pdf->Image($data, $this->pdf->GetX() + $c['x'],
-                $this->pdf->GetY() + $c['y'], $c['width'], $h,
-                $c['type'], $c['link'], $c['align'], $c['resize'], $c['dpi'],
-                $c['palign'], $c['isMask'], $c['imgMask'], $c['border'],
-                $c['fitcell'], $c['hidden'], $c['fitOnPage'], $c['alt'],
-                $c['altImgs']);
-            $this->pdf->SetX($this->GetX() + $c['width']);
-        } else {
-            $this->pdf->Cell($c['width'], $h, $data, $c['border'],
-                $c['ln'], $c['align'], $c['fill'], $c['link'], $c['stretch'],
-                $c['ignoreHeight'], $c['calign'], $c['valign']);
+        if ($result === false) {
+            if ($c['isMultiLine'] || ($header && $c['isMultiLineHeader'])) {
+                // for multicell, if maxh = null, set it to cell's height, so
+                // vertical alignment can work
+                $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
+                    $c['align'], $c['fill'], $c['ln'], $c['x'], $c['y'],
+                    $c['reseth'], $c['stretch'], $c['isHtml'],
+                    $c['autoPadding'], $c['maxh'] === null ? $h : $c['maxh'],
+                    $c['valign'], $c['fitcell']);
+            } else {
+                $this->pdf->Cell($c['width'], $h, $data, $c['border'],
+                    $c['ln'], $c['align'], $c['fill'], $c['link'],
+                    $c['stretch'], $c['ignoreHeight'], $c['calign'],
+                    $c['valign']);
+            }
         }
         $this->trigger(self::EV_CELL_ADDED, [$column, $c, $data, $row, $header]);
         return $this;
@@ -961,7 +953,7 @@ class TcTable {
     private function copyDefaultColumnDefinitions($columns = null, $rowIndex = null) {
         $this->rowDefinition = $this->columnDefinition;
         $h = $this->trigger(self::EV_ROW_HEIGHT_GET, [$columns, $rowIndex], true);
-        if (!$h) {
+        if ($h === null) {
             $h = $columns !== null
                 ? $this->getCurrentRowHeight($columns)
                 : $this->getColumnHeight();
