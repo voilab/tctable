@@ -5,7 +5,7 @@ namespace voilab\tctable\plugin;
 use voilab\tctable\TcTable;
 use voilab\tctable\Plugin;
 
-class StripeRows implements Plugin {
+class StripeRows extends Plugin {
 
     /**
      * Determine whether we start with a filled row or not
@@ -38,10 +38,11 @@ class StripeRows implements Plugin {
     /**
      * {@inheritDocs}
      */
-    public function configure(TcTable $table) {
-        $table
-            ->on(TcTable::EV_BODY_ADD, [$this, 'resetFill'])
-            ->on(TcTable::EV_ROW_ADD, [$this, 'setFill']);
+    protected function getEvents(TcTable $table) {
+        return [
+            TcTable::EV_BODY_ADD => [$this, 'resetFill'],
+            TcTable::EV_ROW_ADD => [$this, 'setFill']
+        ];
     }
 
     /**

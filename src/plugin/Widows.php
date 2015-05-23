@@ -5,7 +5,7 @@ namespace voilab\tctable\plugin;
 use voilab\tctable\TcTable;
 use voilab\tctable\Plugin;
 
-class Widows implements Plugin {
+class Widows extends Plugin {
 
     /**
      * Minimum rows number to have on the last page
@@ -67,13 +67,14 @@ class Widows implements Plugin {
     /**
      * {@inheritDocs}
      */
-    public function configure(TcTable $table) {
-        $table
-            ->on(TcTable::EV_BODY_ADD, [$this, 'initialize'])
-            ->on(TcTable::EV_ROW_ADD, [$this, 'checkAvailableHeight'])
-            ->on(TcTable::EV_ROW_SKIPPED, [$this, 'onRowSkipped'])
-            ->on(TcTable::EV_ROW_HEIGHT_GET, [$this, 'onRowHeightGet'])
-            ->on(TcTable::EV_BODY_ADDED, [$this, 'purge']);
+    protected function getEvents(TcTable $table) {
+        return [
+            TcTable::EV_BODY_ADD => [$this, 'initialize'],
+            TcTable::EV_ROW_ADD => [$this, 'checkAvailableHeight'],
+            TcTable::EV_ROW_SKIPPED => [$this, 'onRowSkipped'],
+            TcTable::EV_ROW_HEIGHT_GET => [$this, 'onRowHeightGet'],
+            TcTable::EV_BODY_ADDED => [$this, 'purge']
+        ];
     }
 
     /**

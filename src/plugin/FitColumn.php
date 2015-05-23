@@ -5,7 +5,7 @@ namespace voilab\tctable\plugin;
 use voilab\tctable\TcTable;
 use voilab\tctable\Plugin;
 
-class FitColumn implements Plugin {
+class FitColumn extends Plugin {
 
     /**
      * Stretched column index
@@ -40,8 +40,10 @@ class FitColumn implements Plugin {
     /**
      * {@inheritDocs}
      */
-    public function configure(TcTable $table) {
-        $table->on(TcTable::EV_BODY_ADD, [$this, 'setWidth']);
+    protected function getEvents(TcTable $table) {
+        return [
+            TcTable::EV_BODY_ADD => [$this, 'setWidth']
+        ];
     }
 
     /**

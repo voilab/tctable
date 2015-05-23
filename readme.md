@@ -69,9 +69,8 @@ $pdf->Output('tctable.pdf', 'I');
 ### Plugins
 #### Have a column that fit the remaining page width
 ```php
-$tctable
-    ->addPlugin(new \voilab\tctable\plugin\FitColumn('text'))
-    ->addColumn('text', [
+$tctable->plugins()->add('fit', new \voilab\tctable\plugin\FitColumn('text'));
+$tctable->addColumn('text', [
         'isMultiLine' => true,
         'header' => 'Text'
         // no need to set width here, the plugin will calculate it for us,
@@ -81,9 +80,9 @@ $tctable
 
 #### Stripe rows
 ```php
-$tctable
+$tctable->plugins()
     // set true to have the first line with colored background
-    ->addPlugin(new \voilab\tctable\plugin\StripeRows(true));
+    ->add('stripe', new \voilab\tctable\plugin\StripeRows(true));
 ```
 
 #### Widows management
@@ -95,7 +94,7 @@ $nb = 4;
 // to add to the pageBreakTrigger margin this line height: the footer
 $mFooter = 10; // i.e: mm
 
-$tctable->addPlugin(new \voilab\tctable\plugin\Widows($nb, $mFooter));
+$tctable->plugins()->add('widows', new \voilab\tctable\plugin\Widows($nb, $mFooter));
 ```
 
 #### Advanced plugin: draw a subtotal for a column at end of each page
@@ -109,7 +108,7 @@ namespace your\namespace;
 use voilab\tctable\TcTable;
 use voilab\tctable\Plugin;
 
-class Report implements Plugin {
+class Report extends Plugin {
 
     // column on which we sum its value
     private $column;
@@ -120,16 +119,17 @@ class Report implements Plugin {
         $this->column = $column;
     }
 
-    public function configure(TcTable $table) {
-        $table
+    protected function getEvents(TcTable $table) {
+        return [
             // when launching the main process, reset sum at 0
-            ->on(TcTable::EV_BODY_ADD, [$this, 'resetSum'])
-            // after each added row, add the value to the sum
-            ->on(TcTable::EV_ROW_ADDED, [$this, 'makeSum'])
-            // when a page is added, draw the "subtotal" string
-            ->on(TcTable::EV_PAGE_ADD, [$this, 'addSubTotal'])
+            TcTable::EV_BODY_ADD => [$this, 'resetSum'],
+            // after each added row => add the value to the sum
+            TcTable::EV_ROW_ADDED => [$this, 'makeSum'],
+            // when a page is added => draw the "subtotal" string
+            TcTable::EV_PAGE_ADD => [$this, 'addSubTotal'],
             // after a page is added, draw the "sum from previous page" string
-            ->on(TcTable::EV_PAGE_ADDED, [$this, 'addReport']);
+            TcTable::EV_PAGE_ADDED => [$this, 'addReport']
+        ];
     }
 
     public function resetSum() {
