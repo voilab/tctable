@@ -928,7 +928,7 @@ class TcTable {
                     $c['valign']);
             }
         }
-        $this->trigger(self::EV_CELL_ADDED, [$column, $c, $data, $row, $header]);
+        $this->trigger(self::EV_CELL_ADDED, [$column, $data, $c, $row, $header]);
         return $this;
     }
 

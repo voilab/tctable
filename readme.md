@@ -98,6 +98,39 @@ $mFooter = 10; // i.e: mm
 $tctable->addPlugin(new \voilab\tctable\plugin\Widows($nb, $mFooter));
 ```
 
+#### Debug
+The TcTable comes with a debug plugin tool that display datas passed in each
+event.
+```php
+// create the plugin. You can define which events to listen (default to rowadd,
+rowadded, rowskipped, headeradd, headeradded, pageadd and pageadded) and the
+printer object (default to an HTML output with <pre>)
+$debug = new \voilab\tctable\plugin\Debug();
+$debug
+    ->setBounds($fromIndex = 0, $numberOfRows = 2, $dieWhenOutOfBounds = true);
+
+// $dieWhenOutOfBounds will stop the script with die(). Usefull for quick
+// debug
+
+$tctable->addPlugin($debug);
+```
+
+You can extend the printer object by creating your own:
+```php
+class MyDebugPrinter implements \voilab\tctable\plugin\debug\PrinterInterface {
+
+    public function output(TcTable $table, array $data) {
+        // do something, log, etc.
+    }
+}
+
+// ... create an instance of debug plugin
+
+// you can set printer the way below, or via the 2nd argument in plugin
+// constructor.
+$debug->setPrinter(new MyDebugPrinter());
+```
+
 #### Advanced plugin: draw a subtotal for a column at end of each page
 We can go further by calculating a sum for a column, and display the current
 sum at the end of the page, and finally report it on the next page.
