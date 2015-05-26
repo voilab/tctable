@@ -103,8 +103,8 @@ The TcTable comes with a debug plugin tool that display datas passed in each
 event.
 ```php
 // create the plugin. You can define which events to listen (default to rowadd,
-rowadded, rowskipped, headeradd, headeradded, pageadd and pageadded) and the
-printer object (default to an HTML output with <pre>)
+// rowadded, rowskipped, headeradd, headeradded, pageadd and pageadded) and the
+// printer object (default to an HTML output with <pre>)
 $debug = new \voilab\tctable\plugin\Debug();
 $debug
     ->setBounds($fromIndex = 0, $numberOfRows = 2, $dieWhenOutOfBounds = true);
