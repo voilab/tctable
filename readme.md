@@ -273,7 +273,7 @@ $tctable->on(TcTable::EV_CELL_HEIGHT_GET, function (TcTable $t, $column, $data, 
 If you need to insert images or need to do very specific things with cell's
 drawing, you can bypass the normal drawing function this way:
 ```php
-$tctable->addColumn('special', [
+$tctable->addColumn('specialColumn', [
     'header' => "Special column",
     'width' => 15,
     'drawFn' => function (TcTable $t, $data, array $definition, $column, $row) {
