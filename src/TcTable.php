@@ -280,6 +280,16 @@ class TcTable {
     private $rowHeight;
 
     /**
+     * The parsed data, after user function has been called
+     * @var array
+     */
+    private $parsedData = [
+        'header' => [],
+        'column' => [],
+        'row' => []
+    ];
+
+    /**
      * Constructor. Get the TCPDF instance as first argument. We MUST define
      * {@link TcTable::setBottomMargin()} if we want consistent page breaks
      *
@@ -762,17 +772,24 @@ class TcTable {
      * Then we can adapt the height of all the other cells of this line.
      *
      * @param array|object $row
+     * @param bool $header true to inform that we check headers
      * @return float
      */
-    public function getCurrentRowHeight($row) {
+    public function getCurrentRowHeight($row, $header = false) {
         // get the max height for this row
         $h = $this->getColumnHeight();
         $this->setRowHeight($h);
         foreach ($this->columnDefinition as $key => $def) {
-            if ((!isset($row[$key]) && !is_callable($def['renderer'])) || !$def['isMultiLine']) {
-                continue;
+            if (!$header) {
+                if ((!isset($row[$key]) && !is_callable($def['renderer'])) || !$def['isMultiLine']) {
+                    continue;
+                }
+            } else {
+                if ((!isset($row[$key]) && !is_callable($def['headerRenderer'])) || !$def['isMultiLineHeader']) {
+                    continue;
+                }
             }
-            $data = $this->fetchDataByUserFunc($def, isset($row[$key]) ? $row[$key] : '', $key, $row, false, true);
+            $data = $this->fetchDataByUserFunc($def, isset($row[$key]) ? $row[$key] : '', $key, $row, false, $header);
             $hd = $this->trigger(self::EV_CELL_HEIGHT_GET, [$key, $data, $row], true);
             if ($hd === null) {
                 // getNumLines doesn't care about HTML. To simulate carriage return,
@@ -800,7 +817,14 @@ class TcTable {
         $height = $this->getRowHeight();
         $definition = $this->rowDefinition;
 
-        $this->copyDefaultColumnDefinitions(null);
+        // create header dataset. It's parsed every time, so it's possible to
+        // change headers with events
+        $headers = [];
+        foreach ($this->columnDefinition as $key => $def) {
+            $headers[$key] = $def['header'];
+        }
+
+        $this->copyDefaultColumnDefinitions($headers);
         if ($this->trigger(self::EV_HEADER_ADD) !== false) {
             foreach ($this->columnDefinition as $key => $def) {
                 $this->addCell($key, $def['header'], $this->columnDefinition, true);
@@ -845,25 +869,29 @@ class TcTable {
         $bmargin = $this->pdf->getMargins()['bottom'];
         $this->pdf->SetAutoPageBreak(false, $this->bottomMargin);
         if ($this->trigger(self::EV_BODY_ADD, [$rows, $fn]) === false) {
-            $this->trigger(self::EV_BODY_SKIPPED, [$rows]);
-            $this->endBody($auto_pb, $bmargin);
+            $this->endBody(self::EV_BODY_SKIPPED, [$rows], $auto_pb, $bmargin);
             return $this;
         }
         if ($this->showHeader) {
             $this->addHeader();
         }
         foreach ($rows as $index => $row) {
-            $data = $fn ? $fn($this, $row, $index, false) : $row;
+            $data = $fn
+                ? (isset($this->parsedData['row'][$index])
+                    ? $this->parsedData['row'][$index]
+                    : $fn($this, $row, $index, false))
+                : $row;
             // draw row only if it's an array. It gives the possibility to skip
             // some rows with the user func
             if (is_array($data) || is_object($data)) {
+                $this->parsedData['row'] = $data;
                 $this->addRow($data, $index);
             } else {
+                $this->parsedData['row'] = true;
                 $this->trigger(self::EV_ROW_SKIPPED, [$row, $index]);
             }
         }
-        $this->trigger(self::EV_BODY_ADDED, [$rows]);
-        $this->endBody($auto_pb, $bmargin);
+        $this->endBody(self::EV_BODY_ADDED, [$rows], $auto_pb, $bmargin);
         return $this;
     }
 
@@ -889,7 +917,7 @@ class TcTable {
         }
         foreach ($this->columnDefinition as $key => $value) {
             if (isset($this->rowDefinition[$key])) {
-                $this->addCell($key, isset($row[$key]) ? $row[$key] : '', $row);
+                $this->addCell($key, isset($row[$key]) ? $row[$key] : '', $row, $index);
             }
         }
         $this->trigger(self::EV_ROW_ADDED, [$row, $index]);
@@ -902,16 +930,17 @@ class TcTable {
      * @param string $column column string index
      * @param mixed $data data to draw inside the cell
      * @param array|object $row all datas for this line
+     * @param int $rowIndex row index
      * @param bool $header true if we draw header cell
      * @return TcTable
      */
-    private function addCell($column, $data, $row, $header = false) {
+    private function addCell($column, $data, $row, $rowIndex, $header = false) {
         $c = $this->rowDefinition[$column];
-        $data = $this->fetchDataByUserFunc($c, $data, $column, $row, $header, false);
+        $data = $this->fetchDataByUserFunc($c, $data, $column, $row, $rowIndex, $header, false);
         if ($this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header]) === false) {
             $data = '';
         }
-        if ($this->drawByUserFunc($data, $column, $row, $header) === null) {
+        if ($this->drawByUserFunc($data, $column, $row, $rowIndex, $header) === null) {
             $h = $this->getRowHeight();
             if ($c['isMultiLine'] || ($header && $c['isMultiLineHeader'])) {
                 // for multicell, if maxh = null, set it to cell's height, so
@@ -939,15 +968,25 @@ class TcTable {
      * @param mixed $data data to draw inside the cell
      * @param string $column column string index
      * @param array|object $row all datas for this line
+     * @param int $rowIndex row index
      * @param bool $header true if we draw header cell
-     * @param bool $heightc determine if we are in height calculation or not
      * @return mixed
      */
-    private function fetchDataByUserFunc($c, $data, $column, $row, $header, $heightc) {
+    private function fetchDataByUserFunc($c, $data, $column, $row, $rowIndex, $header) {
+        $pid = "$column - $rowIndex";
         if (!$header && is_callable($c['renderer'])) {
-            $data = $c['renderer']($this, $data, $row, $column, $heightc);
+            $data = isset($this->parsedData['column'][$pid])
+                ? $this->parsedData['column'][$pid]
+                : $c['renderer']($this, $data, $row, $column, $rowIndex);
+
+            $this->parsedData['column'][$pid] = $data;
+
         } elseif ($header && is_callable($c['headerRenderer'])) {
-            $data = $c['headerRenderer']($this, $data, $row, $column, $heightc);
+            $data = isset($this->parsedData['header'][$pid])
+                ? $this->parsedData['header'][$pid]
+                : $c['headerRenderer']($this, $data, $row, $column, $rowIndex);
+
+            $this->parsedData['header'][$pid] = $data;
         }
         return $data;
     }
@@ -958,16 +997,17 @@ class TcTable {
      * @param mixed $data data to draw inside the cell
      * @param string $column column string index
      * @param array|object $row all datas for this line
+     * @param int $rowIndex row index
      * @param bool $header true if we draw header cell
      * @return bool false to execute normal cell drawing
      */
-    private function drawByUserFunc($data, $column, $row, $header) {
+    private function drawByUserFunc($data, $column, $row, $rowIndex, $header) {
         $c = $this->rowDefinition[$column];
         $result = null;
         if (!$header && is_callable($c['drawFn'])) {
-            $result = $c['drawFn']($this, $data, $c, $column, $row);
+            $result = $c['drawFn']($this, $data, $c, $column, $row, $rowIndex);
         } elseif ($header && is_callable($c['drawHeaderFn'])) {
-            $result = $c['drawHeaderFn']($this, $data, $c, $column, $row);
+            $result = $c['drawHeaderFn']($this, $data, $c, $column, $row, $rowIndex);
         }
         return $result;
     }
@@ -976,11 +1016,19 @@ class TcTable {
      * Finish process in body function, empty parameters, reset defaults in
      * the main PDF, etc.
      *
+     * @param int $event event to trigger
+     * @param array $args arguments to pass to the event
      * @param bool $autoPb
      * @param float $bMargin
      * @return void
      */
-    private function endBody($autoPb, $bMargin) {
+    private function endBody($event, array $args, $autoPb, $bMargin) {
+        $this->trigger($event, $args);
+        $this->parsedData = [
+            'header' => [],
+            'column' => [],
+            'row' => []
+        ];
         $this->pdf->SetAutoPageBreak($autoPb, $bMargin);
     }
 
@@ -992,17 +1040,15 @@ class TcTable {
      * Usefull for plugins that need to temporarily, for one precise row, to
      * change column information (like background color, border, etc)
      *
-     * @param array|object $columns row datas (for each cell)
+     * @param array|object $row row datas (for each cell)
      * @param int $rowIndex row index
      * @return void
      */
-    private function copyDefaultColumnDefinitions($columns = null, $rowIndex = null) {
+    private function copyDefaultColumnDefinitions($row = null, $rowIndex = null) {
         $this->rowDefinition = $this->columnDefinition;
-        $h = $this->trigger(self::EV_ROW_HEIGHT_GET, [$columns, $rowIndex], true);
+        $h = $this->trigger(self::EV_ROW_HEIGHT_GET, [$row, $rowIndex], true);
         if ($h === null) {
-            $h = $columns !== null
-                ? $this->getCurrentRowHeight($columns)
-                : $this->getColumnHeight();
+            $h = $this->getCurrentRowHeight($row, $rowIndex === null);
         }
         $this->setRowHeight($h);
     }

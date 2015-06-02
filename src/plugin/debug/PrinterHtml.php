@@ -68,7 +68,7 @@ class PrinterHtml implements PrinterInterface {
         $tmp = [];
         foreach ($data as $k => $v) {
             if (is_array($v)) {
-                $tmp[$k] = ($this->deepLevel !== null && $level <= $this->deepLevel) || $this->deepLevel === null
+                $tmp[$k] = $this->deepLevel === null || $level <= $this->deepLevel
                     ? $this->purgeObjects($v, ++$level)
                     : '(array)';
 
