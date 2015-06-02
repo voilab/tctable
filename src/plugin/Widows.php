@@ -193,7 +193,7 @@ class Widows implements Plugin {
                 if (!isset($rows[$i])) {
                     return $h;
                 }
-                $data = $fn ? $fn($table, $rows[$i], $i, true) : $rows[$i];
+                $data = $table->getRowData($rows[$i], $i, $fn);
                 // check row only if it's an array. It gives the possibility to
                 // skip some rows with the user func
                 if (is_array($data) || is_object($data)) {

@@ -2,6 +2,8 @@
 
 namespace voilab\tctable;
 
+use voilab\tctable\traits;
+
 /**
  * This class can quickly and easily draw tables with an advanced management
  * of page breaks, row height calculation and plugins integration.
@@ -32,6 +34,8 @@ namespace voilab\tctable;
  * </ul>
  */
 class TcTable {
+
+    use traits\Pluginable, traits\Eventable;
 
     /**
      * Event: before a row is added
@@ -250,18 +254,6 @@ class TcTable {
     private $rowDefinition = [];
 
     /**
-     * Events list available when trigger is called
-     * @var array
-     */
-    private $events = [];
-
-    /**
-     * Plugins attached to this table
-     * @var Plugin[]
-     */
-    private $plugins = [];
-
-    /**
      * Check if we want to show headers when {@link addBody()}
      * @var bool
      */
@@ -304,92 +296,6 @@ class TcTable {
         $this->bottomMargin = $bottomMargin !== null
             ? $bottomMargin
             : $pdf->getMargins()['bottom'];
-    }
-
-    /**
-     * Add a plugin
-     *
-     * @param Plugin $plugin the instanciated plugin
-     * @param string $key a key to quickly find the plugin with getPlugin()
-     * @return TcTable
-     */
-    public function addPlugin(Plugin $plugin, $key = null) {
-        if ($key) {
-            $this->plugins[$key] = $plugin;
-        } else {
-            $this->plugins[] = $plugin;
-        }
-        $plugin->configure($this);
-        return $this;
-    }
-
-    /**
-     * Get a plugin
-     *
-     * @param mixed $key plugin index (0, 1, 2, etc) or string
-     * @return Plugin
-     */
-    public function getPlugin($key) {
-        return isset($this->plugins[$key]) ? $this->plugins[$key] : null;
-    }
-
-    /**
-     * Set an action to do on the specified event
-     *
-     * @param int $event event code
-     * @param callable $fn function to call when the event is triggered
-     * @return TcTable
-     */
-    public function on($event, callable $fn) {
-        if (!isset($this->events[$event])) {
-            $this->events[$event] = [];
-        }
-        $this->events[$event][] = $fn;
-        return $this;
-    }
-
-    /**
-     * Remove an action setted for the specified event
-     *
-     * @param int $event event code
-     * @param callable $fn function to call when the event was triggered
-     * @return TcTable
-     */
-    public function un($event, callable $fn) {
-        if (isset($this->events[$event])) {
-            foreach ($this->events[$event] as $k => $ev) {
-                if ($ev === $fn) {
-                    unset($this->events[$event][$k]);
-                    break;
-                }
-            }
-        }
-        return $this;
-    }
-
-    /**
-     * Browse registered actions for this event
-     *
-     * @param int $event event code
-     * @param array $args arra of arguments to pass to the event function
-     * @param bool $acceptReturn TRUE so a non-null function return can be used
-     * by TcTable
-     * @return mixed desired content or null
-     */
-    public function trigger($event, array $args = [], $acceptReturn = false) {
-        if (isset($this->events[$event])) {
-            array_unshift($args, $this);
-            foreach ($this->events[$event] as $fn) {
-                $data = call_user_func_array($fn, $args);
-                if ($acceptReturn) {
-                    if ($data !== null) {
-                        return $data;
-                    }
-                } elseif ($data === false) {
-                    return false;
-                }
-            }
-        }
     }
 
     /**
@@ -473,13 +379,13 @@ class TcTable {
         // column.
         $this->columnDefinition[$column] = array_merge([
             'isMultiLine' => false,
-            'isMultiLineHeader' => false,
-            'isImage' => false,
             'renderer' => null,
-            'headerRenderer' => null,
-            'header' => '',
             'drawFn' => null,
+            // header
+            'header' => '',
             'drawHeaderFn' => null,
+            'headerRenderer' => null,
+            'isMultiLineHeader' => false,
             // cell
             'width' => 10,
             'height' => $this->getColumnHeight(),
@@ -768,6 +674,33 @@ class TcTable {
     }
 
     /**
+     * Retrieve data from row (call user func if any) and save result in
+     * memory, so the process is done one time for height calculation and for
+     * cell display.
+     *
+     * Use this method in plugins to do some advanced stuff
+     *
+     * @param array|object $row the dataset for the row
+     * @param int $index row index
+     * @param callable $fn
+     * @return array|object
+     */
+    public function getRowData($row, $index, callable $fn = null) {
+        $data = $row;
+        if ($fn) {
+            $data = isset($this->parsedData['row'][$index])
+                ? $this->parsedData['row'][$index]
+                : $fn($this, $row, $index, false);
+        }
+        if (is_array($data) || is_object($data)) {
+            $this->parsedData['row'] = $data;
+        } else {
+            $this->parsedData['row'] = true;
+        }
+        return $data;
+    }
+
+    /**
      * Browse all cells for this row to find which content has the max height.
      * Then we can adapt the height of all the other cells of this line.
      *
@@ -789,7 +722,7 @@ class TcTable {
                     continue;
                 }
             }
-            $data = $this->fetchDataByUserFunc($def, isset($row[$key]) ? $row[$key] : '', $key, $row, false, $header);
+            $data = $this->getCellData($def, $key, $row, false, $header);
             $hd = $this->trigger(self::EV_CELL_HEIGHT_GET, [$key, $data, $row], true);
             if ($hd === null) {
                 // getNumLines doesn't care about HTML. To simulate carriage return,
@@ -818,7 +751,7 @@ class TcTable {
         $definition = $this->rowDefinition;
 
         // create header dataset. It's parsed every time, so it's possible to
-        // change headers with events
+        // change headers with events during one same process
         $headers = [];
         foreach ($this->columnDefinition as $key => $def) {
             $headers[$key] = $def['header'];
@@ -876,18 +809,12 @@ class TcTable {
             $this->addHeader();
         }
         foreach ($rows as $index => $row) {
-            $data = $fn
-                ? (isset($this->parsedData['row'][$index])
-                    ? $this->parsedData['row'][$index]
-                    : $fn($this, $row, $index, false))
-                : $row;
+            $data = $this->getRowData($row, $index, $fn);
             // draw row only if it's an array. It gives the possibility to skip
             // some rows with the user func
             if (is_array($data) || is_object($data)) {
-                $this->parsedData['row'] = $data;
                 $this->addRow($data, $index);
             } else {
-                $this->parsedData['row'] = true;
                 $this->trigger(self::EV_ROW_SKIPPED, [$row, $index]);
             }
         }
@@ -902,7 +829,7 @@ class TcTable {
      * @param int $index row index
      * @return TcTable
      */
-    private function addRow($row, $index = null) {
+    private function addRow($row, $index) {
         $this->copyDefaultColumnDefinitions($row, $index);
         if ($this->trigger(self::EV_ROW_ADD, [$row, $index]) === false) {
             return $this;
@@ -917,7 +844,7 @@ class TcTable {
         }
         foreach ($this->columnDefinition as $key => $value) {
             if (isset($this->rowDefinition[$key])) {
-                $this->addCell($key, isset($row[$key]) ? $row[$key] : '', $row, $index);
+                $this->addCell($key, $row, $index);
             }
         }
         $this->trigger(self::EV_ROW_ADDED, [$row, $index]);
@@ -928,15 +855,14 @@ class TcTable {
      * Draw a cell
      *
      * @param string $column column string index
-     * @param mixed $data data to draw inside the cell
      * @param array|object $row all datas for this line
      * @param int $rowIndex row index
      * @param bool $header true if we draw header cell
      * @return TcTable
      */
-    private function addCell($column, $data, $row, $rowIndex, $header = false) {
+    private function addCell($column, $row, $rowIndex, $header = false) {
         $c = $this->rowDefinition[$column];
-        $data = $this->fetchDataByUserFunc($c, $data, $column, $row, $rowIndex, $header, false);
+        $data = $this->getCellData($c, $column, $row, $rowIndex, $header, false);
         if ($this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header]) === false) {
             $data = '';
         }
@@ -965,14 +891,14 @@ class TcTable {
      * Get data by user function, if it exists
      *
      * @param array $c the column definition
-     * @param mixed $data data to draw inside the cell
      * @param string $column column string index
      * @param array|object $row all datas for this line
      * @param int $rowIndex row index
      * @param bool $header true if we draw header cell
      * @return mixed
      */
-    private function fetchDataByUserFunc($c, $data, $column, $row, $rowIndex, $header) {
+    private function getCellData($c, $column, $row, $rowIndex, $header) {
+        $data = isset($row[$column]) ? $row[$column] : '';
         $pid = "$column - $rowIndex";
         if (!$header && is_callable($c['renderer'])) {
             $data = isset($this->parsedData['column'][$pid])
@@ -1050,7 +976,7 @@ class TcTable {
         if ($h === null) {
             $h = $this->getCurrentRowHeight($row, $rowIndex === null);
         }
-        $this->setRowHeight($h);
+        $this->setRowHeight($h);;
     }
 
 }
