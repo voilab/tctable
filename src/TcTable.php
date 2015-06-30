@@ -278,7 +278,9 @@ class TcTable {
     private $parsedData = [
         'header' => [],
         'column' => [],
-        'row' => []
+        'row' => [],
+        'rowHeight' => [],
+        'cellHeight' => []
     ];
 
     /**
@@ -378,14 +380,15 @@ class TcTable {
         // set to FALSE. When addBody(), TRUE will be setted for the last
         // column.
         $this->columnDefinition[$column] = array_merge([
+            // column
             'isMultiLine' => false,
             'renderer' => null,
             'drawFn' => null,
             // header
             'header' => '',
-            'drawHeaderFn' => null,
-            'headerRenderer' => null,
             'isMultiLineHeader' => false,
+            'headerRenderer' => null,
+            'drawHeaderFn' => null,
             // cell
             'width' => 10,
             'height' => $this->getColumnHeight(),
@@ -686,18 +689,15 @@ class TcTable {
      * @return array|object
      */
     public function getRowData($row, $index, callable $fn = null) {
-        $data = $row;
-        if ($fn) {
-            $data = isset($this->parsedData['row'][$index])
-                ? $this->parsedData['row'][$index]
-                : $fn($this, $row, $index, false);
+        if (!isset($this->parsedData['row'][$index])) {
+            $data = $fn ? $fn($this, $row, $index, false) : $row;
+            if (is_array($data) || is_object($data)) {
+                $this->parsedData['row'][$index] = $data;
+            } else {
+                $this->parsedData['row'][$index] = true;
+            }
         }
-        if (is_array($data) || is_object($data)) {
-            $this->parsedData['row'] = $data;
-        } else {
-            $this->parsedData['row'] = true;
-        }
-        return $data;
+        return $this->parsedData['row'][$index];
     }
 
     /**
@@ -953,7 +953,9 @@ class TcTable {
         $this->parsedData = [
             'header' => [],
             'column' => [],
-            'row' => []
+            'row' => [],
+            'rowHeight' => [],
+            'cellHeight' => [],
         ];
         $this->pdf->SetAutoPageBreak($autoPb, $bMargin);
     }
