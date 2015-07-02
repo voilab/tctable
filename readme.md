@@ -36,7 +36,7 @@ $tctable->setColumns([
         'header' => 'Description',
         'width' => 100
         // check inline documentation to see what options are available.
-        // Basically, it's everything TCPDF Cell, MultiCell and Image can eat.
+        // Basically, it's everything TCPDF Cell and MultiCell can eat.
     ],
     'quantity' => [
         'header' => 'Quantity',
@@ -53,6 +53,9 @@ $tctable->setColumns([
 // get rows data
 $rows = getMyDatasAsMyObjs();
 
+// add a page so the content can be printed on something
+$pdf->AddPage();
+// draw body
 $tctable->addBody($rows, function (\voilab\tctable\TcTable $table, \MyObj $row) {
     $change_rate = 0.8;
     // map row data to TcTable column definitions

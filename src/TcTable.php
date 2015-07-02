@@ -409,6 +409,8 @@ class TcTable {
      *     <li><i>string</i> <b>border</b>: cell border (LTBR)</li>
      *     <li><i>string</i> <b>align</b>: text horizontal align (LCR)</li>
      *     <li><i>string</i> <b>valign</b>: text vertical align (TCB)</li>
+     *     <li><i>float</i> <b>height</b>: min height for cell (default to
+     *     {@link setColumnHeight()}</li>
      * </ul>
      *
      * MultiCell options:
@@ -431,8 +433,6 @@ class TcTable {
      *     will draw the cell/multicell/image or anything else. The func receive
      *     as args (TcTable $table, mixed $data, array $columnDefinition,
      *     string $column, array|object $row)</li>
-     *     <li><i>float</i> <b>height</b>: min height for cell (default to
-     *     {@link setColumnHeight()}</li>
      *     <li><i>bool</i> <b>ln</b>: managed by TcTable. This option is
      *     ignored.</li>
      *     <li><i>bool</i> <b>fill</b>: see doc {@link \TCPDF::Cell}</li>
@@ -472,7 +472,7 @@ class TcTable {
             'drawHeaderFn' => null,
             // cell
             'width' => 10,
-            'height' => $this->getColumnHeight(),
+            'height' => null,
             'border' => 0,
             'ln' => false,
             'align' => 'L',
@@ -494,6 +494,10 @@ class TcTable {
             'cellPadding' => ''
         ], $this->defaultColumnDefinition, $definition);
 
+        if ($this->columnDefinition[$column]['height'] === null) {
+            $this->columnDefinition[$column]['height'] = $this->getColumnHeight();
+        }
+
         $this->trigger(self::EV_COLUMN_ADDED, [
             $column,
             $this->columnDefinition[$column]
@@ -506,10 +510,13 @@ class TcTable {
      *
      * @see addColumn
      * @param array $columns
+     * @param bool $add true to add these columns to existing columns
      * @return \mangetasoupe\pdf\TcTable
      */
-    public function setColumns(array $columns) {
-        $this->columnDefinition = [];
+    public function setColumns(array $columns, $add = false) {
+        if (!$add) {
+            $this->columnDefinition = [];
+        }
         foreach ($columns as $key => $def) {
             $this->addColumn($key, $def);
         }
@@ -769,9 +776,10 @@ class TcTable {
         $h = $this->getColumnHeight();
         $this->setRowHeight($h);
         foreach ($this->columnDefinition as $key => $def) {
-            if ((!isset($row[$key]) && !is_callable($def['renderer'])) || !$def['isMultiLine']) {
+            if ((!isset($row[$key]) && !is_callable($def['renderer']) && !is_callable($def['drawFn'])) || !$def['isMultiLine']) {
                 continue;
             }
+            $h = $def['height'];
             $data = $this->fetchDataByUserFunc($def, isset($row[$key]) ? $row[$key] : '', $key, $row, false, true);
             $hd = $this->trigger(self::EV_CELL_HEIGHT_GET, [$key, $data, $row], true);
             if ($hd === null) {
@@ -911,9 +919,9 @@ class TcTable {
         if ($this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header]) === false) {
             $data = '';
         }
-        if ($this->drawByUserFunc($data, $column, $row, $header) === null) {
+        if ($this->drawByUserFunc($data, $column, $row, $header) === false) {
             $h = $this->getRowHeight();
-            if ($c['isMultiLine'] || ($header && $c['isMultiLineHeader'])) {
+            if ((!$header && $c['isMultiLine']) || ($header && $c['isMultiLineHeader'])) {
                 // for multicell, if maxh = null, set it to cell's height, so
                 // vertical alignment can work
                 $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
@@ -963,7 +971,7 @@ class TcTable {
      */
     private function drawByUserFunc($data, $column, $row, $header) {
         $c = $this->rowDefinition[$column];
-        $result = null;
+        $result = false;
         if (!$header && is_callable($c['drawFn'])) {
             $result = $c['drawFn']($this, $data, $c, $column, $row);
         } elseif ($header && is_callable($c['drawHeaderFn'])) {
