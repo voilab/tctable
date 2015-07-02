@@ -339,6 +339,25 @@ class TcTable {
     }
 
     /**
+     * Remove an action setted for the specified event
+     *
+     * @param int $event event code
+     * @param callable $fn function to call when the event was triggered
+     * @return TcTable
+     */
+    public function un($event, callable $fn) {
+        if (isset($this->events[$event])) {
+            foreach ($this->events[$event] as $k => $ev) {
+                if ($ev === $fn) {
+                    unset($this->events[$event][$k]);
+                    break;
+                }
+            }
+        }
+        return $this;
+    }
+
+    /**
      * Browse registered actions for this event
      *
      * @param int $event event code
@@ -379,7 +398,7 @@ class TcTable {
      * Frequently used Cell and MultiCell options:
      * <ul>
      *     <li><i>callable</i> <b>renderer</b>: renderer function for datas.
-     *     Recieve (TcTable $table, $data, $row, $column $height). The last
+     *     Recieve (TcTable $table, $data, $row, $column, $height). The last
      *     parameter is TRUE when called during height calculation. This method
      *     is called twice, one time for cell height calculation and one time
      *     for data drawing.</li>
@@ -390,6 +409,8 @@ class TcTable {
      *     <li><i>string</i> <b>border</b>: cell border (LTBR)</li>
      *     <li><i>string</i> <b>align</b>: text horizontal align (LCR)</li>
      *     <li><i>string</i> <b>valign</b>: text vertical align (TCB)</li>
+     *     <li><i>float</i> <b>height</b>: min height for cell (default to
+     *     {@link setColumnHeight()}</li>
      * </ul>
      *
      * MultiCell options:
@@ -412,8 +433,6 @@ class TcTable {
      *     will draw the cell/multicell/image or anything else. The func receive
      *     as args (TcTable $table, mixed $data, array $columnDefinition,
      *     string $column, array|object $row)</li>
-     *     <li><i>float</i> <b>height</b>: min height for cell (default to
-     *     {@link setColumnHeight()}</li>
      *     <li><i>bool</i> <b>ln</b>: managed by TcTable. This option is
      *     ignored.</li>
      *     <li><i>bool</i> <b>fill</b>: see doc {@link \TCPDF::Cell}</li>
@@ -453,7 +472,7 @@ class TcTable {
             'drawHeaderFn' => null,
             // cell
             'width' => 10,
-            'height' => $this->getColumnHeight(),
+            'height' => null,
             'border' => 0,
             'ln' => false,
             'align' => 'L',
@@ -475,6 +494,10 @@ class TcTable {
             'cellPadding' => ''
         ], $this->defaultColumnDefinition, $definition);
 
+        if ($this->columnDefinition[$column]['height'] === null) {
+            $this->columnDefinition[$column]['height'] = $this->getColumnHeight();
+        }
+
         $this->trigger(self::EV_COLUMN_ADDED, [
             $column,
             $this->columnDefinition[$column]
@@ -487,10 +510,13 @@ class TcTable {
      *
      * @see addColumn
      * @param array $columns
+     * @param bool $add true to add these columns to existing columns
      * @return \mangetasoupe\pdf\TcTable
      */
-    public function setColumns(array $columns) {
-        $this->columnDefinition = [];
+    public function setColumns(array $columns, $add = false) {
+        if (!$add) {
+            $this->columnDefinition = [];
+        }
         foreach ($columns as $key => $def) {
             $this->addColumn($key, $def);
         }
@@ -750,13 +776,11 @@ class TcTable {
         $h = $this->getColumnHeight();
         $this->setRowHeight($h);
         foreach ($this->columnDefinition as $key => $def) {
-            if ((!isset($row[$key]) && !is_callable($def['renderer'])) || !$def['isMultiLine']) {
+            if ((!isset($row[$key]) && !is_callable($def['renderer']) && !is_callable($def['drawFn'])) || !$def['isMultiLine']) {
                 continue;
             }
-            $data = isset($row[$key]) ? $row[$key] : '';
-            if (is_callable($def['renderer'])) {
-                $data = $def['renderer']($this, $data, $row, true);
-            }
+            $h = $def['height'];
+            $data = $this->fetchDataByUserFunc($def, isset($row[$key]) ? $row[$key] : '', $key, $row, false, true);
             $hd = $this->trigger(self::EV_CELL_HEIGHT_GET, [$key, $data, $row], true);
             if ($hd === null) {
                 // getNumLines doesn't care about HTML. To simulate carriage return,
@@ -891,23 +915,13 @@ class TcTable {
      */
     private function addCell($column, $data, $row, $header = false) {
         $c = $this->rowDefinition[$column];
-        if (!$header && is_callable($c['renderer'])) {
-            $data = $c['renderer']($this, $data, $row, $column, false);
-        } elseif ($header && is_callable($c['headerRenderer'])) {
-            $data = $c['headerRenderer']($this, $data, $row, $column, false);
-        }
+        $data = $this->fetchDataByUserFunc($c, $data, $column, $row, $header, false);
         if ($this->trigger(self::EV_CELL_ADD, [$column, $data, $c, $row, $header]) === false) {
             $data = '';
         }
-        $result = false;
-        if (!$header && is_callable($c['drawFn'])) {
-            $result = $c['drawFn']($this, $data, $c, $column, $row);
-        } elseif ($header && is_callable($c['drawHeaderFn'])) {
-            $result = $c['drawHeaderFn']($this, $data, $c, $column, $row);
-        }
-        $h = $this->getRowHeight();
-        if ($result === false) {
-            if ($c['isMultiLine'] || ($header && $c['isMultiLineHeader'])) {
+        if ($this->drawByUserFunc($data, $column, $row, $header) === false) {
+            $h = $this->getRowHeight();
+            if ((!$header && $c['isMultiLine']) || ($header && $c['isMultiLineHeader'])) {
                 // for multicell, if maxh = null, set it to cell's height, so
                 // vertical alignment can work
                 $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
@@ -922,8 +936,48 @@ class TcTable {
                     $c['valign']);
             }
         }
-        $this->trigger(self::EV_CELL_ADDED, [$column, $c, $data, $row, $header]);
+        $this->trigger(self::EV_CELL_ADDED, [$column, $data, $c, $row, $header]);
         return $this;
+    }
+
+    /**
+     * Get data by user function, if it exists
+     *
+     * @param array $c the column definition
+     * @param mixed $data data to draw inside the cell
+     * @param string $column column string index
+     * @param array|object $row all datas for this line
+     * @param bool $header true if we draw header cell
+     * @param bool $heightc determine if we are in height calculation or not
+     * @return mixed
+     */
+    private function fetchDataByUserFunc($c, $data, $column, $row, $header, $heightc) {
+        if (!$header && is_callable($c['renderer'])) {
+            $data = $c['renderer']($this, $data, $row, $column, $heightc);
+        } elseif ($header && is_callable($c['headerRenderer'])) {
+            $data = $c['headerRenderer']($this, $data, $row, $column, $heightc);
+        }
+        return $data;
+    }
+
+    /**
+     * Draw cell/image or anything else by user function, if it exists
+     *
+     * @param mixed $data data to draw inside the cell
+     * @param string $column column string index
+     * @param array|object $row all datas for this line
+     * @param bool $header true if we draw header cell
+     * @return bool false to execute normal cell drawing
+     */
+    private function drawByUserFunc($data, $column, $row, $header) {
+        $c = $this->rowDefinition[$column];
+        $result = false;
+        if (!$header && is_callable($c['drawFn'])) {
+            $result = $c['drawFn']($this, $data, $c, $column, $row);
+        } elseif ($header && is_callable($c['drawHeaderFn'])) {
+            $result = $c['drawHeaderFn']($this, $data, $c, $column, $row);
+        }
+        return $result;
     }
 
     /**

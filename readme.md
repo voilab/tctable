@@ -36,7 +36,7 @@ $tctable->setColumns([
         'header' => 'Description',
         'width' => 100
         // check inline documentation to see what options are available.
-        // Basically, it's everything TCPDF Cell, MultiCell and Image can eat.
+        // Basically, it's everything TCPDF Cell and MultiCell can eat.
     ],
     'quantity' => [
         'header' => 'Quantity',
@@ -53,6 +53,9 @@ $tctable->setColumns([
 // get rows data
 $rows = getMyDatasAsMyObjs();
 
+// add a page so the content can be printed on something
+$pdf->AddPage();
+// draw body
 $tctable->addBody($rows, function (\voilab\tctable\TcTable $table, \MyObj $row) {
     $change_rate = 0.8;
     // map row data to TcTable column definitions
@@ -96,6 +99,39 @@ $nb = 4;
 $mFooter = 10; // i.e: mm
 
 $tctable->addPlugin(new \voilab\tctable\plugin\Widows($nb, $mFooter));
+```
+
+#### Debug
+The TcTable comes with a debug plugin tool that display datas passed in each
+event.
+```php
+// create the plugin. You can define which events to listen (default to rowadd,
+// rowadded, rowskipped, headeradd, headeradded, pageadd and pageadded) and the
+// printer object (default to an HTML output with <pre>)
+$debug = new \voilab\tctable\plugin\Debug();
+$debug
+    ->setBounds($fromIndex = 0, $numberOfRows = 2, $dieWhenOutOfBounds = true);
+
+// $dieWhenOutOfBounds will stop the script with die(). Usefull for quick
+// debug
+
+$tctable->addPlugin($debug);
+```
+
+You can extend the printer object by creating your own:
+```php
+class MyDebugPrinter implements \voilab\tctable\plugin\debug\PrinterInterface {
+
+    public function output(TcTable $table, array $data) {
+        // do something, log, etc.
+    }
+}
+
+// ... create an instance of debug plugin
+
+// you can set printer the way below, or via the 2nd argument in plugin
+// constructor.
+$debug->setPrinter(new MyDebugPrinter());
 ```
 
 #### Advanced plugin: draw a subtotal for a column at end of each page
@@ -273,7 +309,7 @@ $tctable->on(TcTable::EV_CELL_HEIGHT_GET, function (TcTable $t, $column, $data, 
 If you need to insert images or need to do very specific things with cell's
 drawing, you can bypass the normal drawing function this way:
 ```php
-$tctable->addColumn('special', [
+$tctable->addColumn('specialColumn', [
     'header' => "Special column",
     'width' => 15,
     'drawFn' => function (TcTable $t, $data, array $definition, $column, $row) {
