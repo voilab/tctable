@@ -71,6 +71,7 @@ class Widows implements Plugin {
         $table
             ->on(TcTable::EV_BODY_ADD, [$this, 'initialize'])
             ->on(TcTable::EV_ROW_ADD, [$this, 'checkAvailableHeight'])
+            ->on(TcTable::EV_ROW_ADDED, [$this, 'checkFooter'])
             ->on(TcTable::EV_ROW_SKIPPED, [$this, 'onRowSkipped'])
             ->on(TcTable::EV_ROW_HEIGHT_GET, [$this, 'onRowHeightGet'])
             ->on(TcTable::EV_BODY_ADDED, [$this, 'purge']);
@@ -149,6 +150,24 @@ class Widows implements Plugin {
         // we take this value, instead of calculating it a second time.
         if ($rowIndex !== null && isset($this->_widowsCalculatedHeight[$rowIndex])) {
             return $this->_widowsCalculatedHeight[$rowIndex];
+        }
+    }
+
+    /**
+     * Check if there's space for the footer, after the last row is added
+     *
+     * @param TcTable $table
+     * @param array|object $row
+     * @param int $rowIndex
+     * @return void
+     */
+    public function checkFooter(TcTable $table, $row, $rowIndex) {
+        $pdf = $table->getPdf();
+        if ($rowIndex == $this->count - 1 && $pdf->GetY() + $this->height >= $this->pageBreakTrigger) {
+            if ($table->trigger(TcTable::EV_PAGE_ADD, [$this->rows, $rowIndex, true]) !== false) {
+                $pdf->AddPage();
+                $table->trigger(TcTable::EV_PAGE_ADDED, [$this->rows, $rowIndex, true]);
+            }
         }
     }
 
