@@ -36,7 +36,7 @@ $tctable->setColumns([
         'header' => 'Description',
         'width' => 100
         // check inline documentation to see what options are available.
-        // Basically, it's everything TCPDF Cell, MultiCell and Image can eat.
+        // Basically, it's everything TCPDF Cell and MultiCell can eat.
     ],
     'quantity' => [
         'header' => 'Quantity',
@@ -53,6 +53,9 @@ $tctable->setColumns([
 // get rows data
 $rows = getMyDatasAsMyObjs();
 
+// add a page so the content can be printed on something
+$pdf->AddPage();
+// draw body
 $tctable->addBody($rows, function (\voilab\tctable\TcTable $table, \MyObj $row) {
     $change_rate = 0.8;
     // map row data to TcTable column definitions
@@ -232,21 +235,12 @@ $tctable
 ### Renderer and body functions
 
 When parsing data, you can define either a renderer function for each or some
-columns, or an anonymous function when calling $tctable->addBody(). These
-functions are called twice, because it is needed in the process for height
-calculation. You need to take that into account in certain cases.
+columns, or an anonymous function when calling $tctable->addBody().
 
 ```php
 $total = 0;
-$tctable->addBody($rows, function (TcTable $t, $row, $index, $isHeightCalculation) use (&$total) {
-    // if $height is true, it means this method is called when height
-    // calculation is running. If we want to do a sum, we check first if
-    // $isHeightCalculation is false, so it means the func is called during row
-    // draw.
-    if (!$isHeightCalculation) {
-        $total += $row->getSomeValue();
-    }
-    // you still need to return the data regardless of $isHeightCalculation
+$tctable->addBody($rows, function (TcTable $t, $row, $index) use (&$total) {
+    $total += $row->getSomeValue();
     return [
         'description' => $row->getDescription(),
         'value' => $row->getSomeValue()
@@ -261,7 +255,7 @@ The same idea applies to column renderers.
 > *Note*
 > In cases like the one above (creating a sum), you better should use plugins
 > or events. With the event _TcTable::EV_ROW_ADDED_, you can do exactely the
-> same thing without bothering with height calculation (see below).
+> same thing (see below).
 
 ```php
 $total = 0;
