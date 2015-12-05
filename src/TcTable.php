@@ -345,13 +345,17 @@ class TcTable {
      * @param callable $fn function to call when the event was triggered
      * @return TcTable
      */
-    public function un($event, callable $fn) {
+    public function un($event, callable $fn = null) {
         if (isset($this->events[$event])) {
-            foreach ($this->events[$event] as $k => $ev) {
-                if ($ev === $fn) {
-                    unset($this->events[$event][$k]);
-                    break;
+            if ($fn) {
+                foreach ($this->events[$event] as $k => $ev) {
+                    if ($ev === $fn) {
+                        unset($this->events[$event][$k]);
+                        break;
+                    }
                 }
+            } else {
+                unset($this->events[$event]);
             }
         }
         return $this;
