@@ -44,6 +44,12 @@ class Widows implements Plugin {
     private $footerHeight;
 
     /**
+     * Table
+     * @var TcTable
+     */
+    private $table;
+
+    /**
      * When addBody is called, we calculate widows height so we can check if
      * it's possible to draw them all on the current page (if not, we add a new
      * page). To avoid to calculate the height twice, 1 time here and 1 time
@@ -68,6 +74,7 @@ class Widows implements Plugin {
      * {@inheritDocs}
      */
     public function configure(TcTable $table) {
+        $this->table = $table;
         $table
             ->on(TcTable::EV_BODY_ADD, [$this, 'initialize'])
             ->on(TcTable::EV_ROW_ADD, [$this, 'checkAvailableHeight'])
@@ -86,6 +93,7 @@ class Widows implements Plugin {
      */
     public function setFooterHeight($height) {
         $this->footerHeight = $height;
+        $this->resetPageBreakTrigger();
         return $this;
     }
 
@@ -113,7 +121,7 @@ class Widows implements Plugin {
         $this->height = $this->getCalculatedWidowsHeight($table, $rows, $fn);
         $this->count = count($rows);
         $this->rows = $rows;
-        $this->pageBreakTrigger = $table->getPdF()->getPageHeight() - $table->getPdf()->getBreakMargin() - $this->footerHeight;
+        $this->resetPageBreakTrigger();
     }
 
     /**
@@ -189,6 +197,13 @@ class Widows implements Plugin {
                 $pdf->AddPage();
                 $table->trigger(TcTable::EV_PAGE_ADDED, [$this->rows, $rowIndex, true]);
             }
+        }
+    }
+
+    private function resetPageBreakTrigger() {
+        // pagebreak trigger adaptation
+        if ($this->table) {
+            $this->pageBreakTrigger = $this->table->getPdF()->getPageHeight() - $this->table->getPdf()->getBreakMargin() - $this->footerHeight;
         }
     }
 
