@@ -314,6 +314,23 @@ class TcTable {
     }
 
     /**
+     * Remove a plugin and its events by the key
+     *
+     * @param string $key the key used in TcTable::addPlugin()
+     * @return TcTable
+     */
+    public function removePlugin($key) {
+        if (!isset($this->plugins[$key])) {
+            return $this;
+        }
+        if (method_exists($this->plugins[$key], 'unconfigure')) {
+            $this->plugins[$key]->unconfigure($this);
+        }
+        unset($this->plugins[$key]);
+        return $this;
+    }
+
+    /**
      * Get a plugin
      *
      * @param mixed $key plugin index (0, 1, 2, etc) or string
