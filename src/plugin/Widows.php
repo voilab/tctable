@@ -85,6 +85,23 @@ class Widows implements Plugin {
     }
 
     /**
+     * Unconfigure the plugin
+     *
+     * @param TcTable $table
+     * @return void
+     */
+    public function unconfigure(TcTable $table) {
+        $this->table = $table;
+        $table
+            ->un(TcTable::EV_BODY_ADD, [$this, 'initialize'])
+            ->un(TcTable::EV_ROW_ADD, [$this, 'checkAvailableHeight'])
+            ->un(TcTable::EV_ROW_ADDED, [$this, 'checkFooter'])
+            ->un(TcTable::EV_ROW_SKIPPED, [$this, 'onRowSkipped'])
+            ->un(TcTable::EV_ROW_HEIGHT_GET, [$this, 'onRowHeightGet'])
+            ->un(TcTable::EV_BODY_ADDED, [$this, 'purge']);
+    }
+
+    /**
      * Set table footer height. Used to adapt widows on last page, in case the
      * footer is alone on the last page and it's not what we want.
      *
