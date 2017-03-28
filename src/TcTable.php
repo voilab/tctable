@@ -797,10 +797,13 @@ class TcTable {
         $h = $this->getColumnHeight();
         $this->setRowHeight($h);
         foreach ($this->columnDefinition as $key => $def) {
+            $h = $def['height'];
+            if ($h > $this->getRowHeight()) {
+                $this->setRowHeight($h);
+            }
             if ((!isset($row[$key]) && !is_callable($def['renderer']) && !is_callable($def['drawFn'])) || !$def['isMultiLine']) {
                 continue;
             }
-            $h = $def['height'];
             $data = $this->fetchDataByUserFunc($def, isset($row[$key]) ? $row[$key] : '', $key, $row, false, true);
             $hd = $this->trigger(self::EV_CELL_HEIGHT_GET, [$key, $data, $row], true);
             if ($hd === null) {
@@ -908,7 +911,7 @@ class TcTable {
         if ($this->trigger(self::EV_ROW_ADD, [$row, $index]) === false) {
             return $this;
         }
-        $h = current($this->rowDefinition)['height'];
+        $h = $this->getRowHeight();
         $page_break_trigger = $this->pdf->getPageHeight() - $this->pdf->getBreakMargin();
         if ($this->pdf->GetY() + $h >= $page_break_trigger) {
             if ($this->trigger(self::EV_PAGE_ADD, [$row, $index, false]) !== false) {
