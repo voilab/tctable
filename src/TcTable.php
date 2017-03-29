@@ -796,25 +796,34 @@ class TcTable {
         // get the max height for this row
         $h = $this->getColumnHeight();
         $this->setRowHeight($h);
+        if (!isset($this->rowDefinition['_content'])) {
+            $this->rowDefinition['_content'] = [];
+        }
         foreach ($this->columnDefinition as $key => $def) {
             $h = $def['height'];
             if ($h > $this->getRowHeight()) {
                 $this->setRowHeight($h);
             }
+            $this->rowDefinition['_content'][$key] = $h;
             if ((!isset($row[$key]) && !is_callable($def['renderer']) && !is_callable($def['drawFn'])) || !$def['isMultiLine']) {
                 continue;
             }
             $data = $this->fetchDataByUserFunc($def, isset($row[$key]) ? $row[$key] : '', $key, $row, false, true);
             $hd = $this->trigger(self::EV_CELL_HEIGHT_GET, [$key, $data, $row], true);
             if ($hd === null) {
-                // getNumLines doesn't care about HTML. To simulate carriage return,
-                // we replace <br> with \n. Any better idea? Transactions?
-                $data_to_check = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $data));
+                $data_to_check = $data;
+                if ($def['isHtml']) {
+                    // getNumLines doesn't care about HTML. To simulate carriage return,
+                    // we replace <br> with \n. Any better idea? Transactions?
+                    $data = str_replace(["\n", "\r"], '', $data);
+                    $data_to_check = strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $data));
+                }
                 $nb = $this->pdf->getNumLines($data_to_check, $def['width'],
                     $def['reseth'], $def['autoPadding'],
                     $def['cellPadding'], $def['border']);
 
                 $hd = $nb * $h;
+                $this->rowDefinition['_content'][$key] = $hd;
             }
             if ($hd > $this->getRowHeight()) {
                 $this->setRowHeight($hd);
@@ -948,11 +957,28 @@ class TcTable {
             if ((!$header && $c['isMultiLine']) || ($header && $c['isMultiLineHeader'])) {
                 // for multicell, if maxh = null, set it to cell's height, so
                 // vertical alignment can work
+                $y = $this->pdf->GetY();
+                if ($c['isHtml'] && $this->rowDefinition['_content'][$column] < $h) {
+                    // try to center vertically the best way we can the cell
+                    // when it's html content
+                    $pos = $y + (($h - $this->rowDefinition['_content'][$column]) / 2);
+                    $h = $this->rowDefinition['_content'][$column];
+                    $c['x'] = $this->pdf->GetX();
+                    $c['y'] = $pos;
+                }
+
                 $this->pdf->MultiCell($c['width'], $h, $data, $c['border'],
                     $c['align'], $c['fill'], $c['ln'], $c['x'], $c['y'],
                     $c['reseth'], $c['stretch'], $c['isHtml'],
                     $c['autoPadding'], $c['maxh'] === null ? $h : $c['maxh'],
                     $c['valign'], $c['fitcell']);
+
+                if ($c['isHtml']) {
+                    // reset position after drawing the multicell html content
+                    $x = $this->pdf->GetX();
+                    $this->pdf->SetY($y);
+                    $this->pdf->SetX($x);
+                }
             } else {
                 $this->pdf->Cell($c['width'], $h, $data, $c['border'],
                     $c['ln'], $c['align'], $c['fill'], $c['link'],
