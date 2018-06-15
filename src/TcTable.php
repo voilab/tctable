@@ -34,6 +34,7 @@ namespace voilab\tctable;
 class TcTable {
 
     /**
+     * @var
      * Event: before a row is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -46,6 +47,7 @@ class TcTable {
     const EV_ROW_ADD = 1;
 
     /**
+     * @var
      * Event: after a row is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -57,6 +59,7 @@ class TcTable {
     const EV_ROW_ADDED = 2;
 
     /**
+     * @var
      * Event: before cell height is calculated
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -69,6 +72,7 @@ class TcTable {
     const EV_CELL_HEIGHT_GET = 3;
 
     /**
+     * @var
      * Event: before headers are added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -78,6 +82,7 @@ class TcTable {
     const EV_HEADER_ADD = 4;
 
     /**
+     * @var
      * Event: after headers are added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -87,6 +92,7 @@ class TcTable {
     const EV_HEADER_ADDED = 5;
 
     /**
+     * @var
      * Event: after a column definition is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -98,6 +104,7 @@ class TcTable {
     const EV_COLUMN_ADDED = 6;
 
     /**
+     * @var
      * Event: before a cell is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -114,6 +121,7 @@ class TcTable {
     const EV_CELL_ADD = 7;
 
     /**
+     * @var
      * Event: after a cell is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -129,6 +137,7 @@ class TcTable {
     const EV_CELL_ADDED = 8;
 
     /**
+     * @var
      * Event: before a page break is added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -144,6 +153,7 @@ class TcTable {
     const EV_PAGE_ADD = 9;
 
     /**
+     * @var
      * Event: après qu'un saut de page soit ajouté
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -159,6 +169,7 @@ class TcTable {
     const EV_PAGE_ADDED = 10;
 
     /**
+     * @var
      * Event: before data rows are added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -171,6 +182,7 @@ class TcTable {
     const EV_BODY_ADD = 11;
 
     /**
+     * @var
      * Event: after data rows are added
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -182,6 +194,7 @@ class TcTable {
     const EV_BODY_ADDED = 12;
 
     /**
+     * @var
      * Event: after the body is skipped (no rows are drawn in the pdf)
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -193,6 +206,7 @@ class TcTable {
     const EV_BODY_SKIPPED = 13;
 
     /**
+     * @var
      * Event: after a row is skipped (it is not drawn in the pdf)
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -204,6 +218,7 @@ class TcTable {
     const EV_ROW_SKIPPED = 14;
 
     /**
+     * @var
      * Event: during copy of row definition, get row height
      * <ul>
      *     <li><i>TcTable</i> <b>$table</b> TcTable behind the event</li>
@@ -359,7 +374,7 @@ class TcTable {
      * Remove an action setted for the specified event
      *
      * @param int $event event code
-     * @param callable $fn function to call when the event was triggered
+     * @param callable|null $fn function to call when the event was triggered
      * @return TcTable
      */
     public function un($event, callable $fn = null) {
@@ -874,7 +889,7 @@ class TcTable {
      * </ul>
      *
      * @param array|Traversable $rows the complete set of data
-     * @param callable $fn data layout function
+     * @param callable|null $fn data layout function
      * @return TcTable
      */
     public function addBody($rows, callable $fn = null) {
@@ -958,7 +973,7 @@ class TcTable {
                 // for multicell, if maxh = null, set it to cell's height, so
                 // vertical alignment can work
                 $y = $this->pdf->GetY();
-                if ($c['isHtml'] && $this->rowDefinition['_content'][$column] < $h) {
+                if ($c['valign'] === 'M' && $c['isHtml'] && $this->rowDefinition['_content'][$column] < $h) {
                     // try to center vertically the best way we can the cell
                     // when it's html content
                     $pos = $y + (($h - $this->rowDefinition['_content'][$column]) / 2);
