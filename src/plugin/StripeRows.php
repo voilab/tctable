@@ -86,6 +86,9 @@ class StripeRows implements Plugin {
             $fill = $this->rowCurrentStripe = !$this->rowCurrentStripe;
         }
         foreach ($table->getRowDefinition() as $column => $row) {
+            if ($column === '_content') {
+                continue;
+            }
             $table->setRowDefinition($column, 'fill', $row['fill'] ?: $fill);
         }
         $this->moveY($table);
