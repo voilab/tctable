@@ -1,5 +1,6 @@
 {
     "name": "voilab/tctable",
+    "version": "1.2.4",
     "description": "Create quickly and efficiently tables without HTML formatting and with advanced page break options",
     "keywords": [
         "voilab",
