@@ -547,7 +547,7 @@ class TcTable {
      * @see addColumn
      * @param array $columns
      * @param bool $add true to add these columns to existing columns
-     * @return \mangetasoupe\pdf\TcTable
+     * @return TcTable
      */
     public function setColumns(array $columns, $add = false) {
         if (!$add) {
