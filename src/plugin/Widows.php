@@ -133,7 +133,7 @@ class Widows implements Plugin {
      * @param callable $fn
      * @return void
      */
-    public function initialize(TcTable $table, $rows, callable $fn = null) {
+    public function initialize(TcTable $table, $rows, ?callable $fn = null) {
         $this->_widowsCalculatedHeight = [];
         $this->height = $this->getCalculatedWidowsHeight($table, $rows, $fn);
         $this->count = count($rows);
@@ -170,12 +170,13 @@ class Widows implements Plugin {
      * @param int $rowIndex
      * @return float
      */
-    public function onRowHeightGet(TcTable $table, $row = null, $rowIndex = null) {
+    public function onRowHeightGet(TcTable $table, $row = null, $rowIndex = null): float|null {
         // if current row index is one of the already-calculated widows height,
         // we take this value, instead of calculating it a second time.
         if ($rowIndex !== null && isset($this->_widowsCalculatedHeight[$rowIndex])) {
             return $this->_widowsCalculatedHeight[$rowIndex];
         }
+        return null;
     }
 
     /**
@@ -229,11 +230,11 @@ class Widows implements Plugin {
      * remaining height isn't enough to draw all the widows on the current page.
      *
      * @param TcTable $table
-     * @param array|Traversable $rows the complete set of data
+     * @param array|\Traversable $rows the complete set of data
      * @param callable $fn addBody function for data layout
      * @return float
      */
-    private function getCalculatedWidowsHeight(TcTable $table, $rows, callable $fn = null) {
+    private function getCalculatedWidowsHeight(TcTable $table, $rows, ?callable $fn = null) {
         $count = count($rows);
         $limit = $count - $this->minWidowsOnPage;
         $h = 0;
