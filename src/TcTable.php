@@ -377,7 +377,7 @@ class TcTable {
      * @param callable|null $fn function to call when the event was triggered
      * @return TcTable
      */
-    public function un($event, callable $fn = null) {
+    public function un($event, ?callable $fn = null) {
         if (isset($this->events[$event])) {
             if ($fn) {
                 foreach ($this->events[$event] as $k => $ev) {
@@ -547,7 +547,7 @@ class TcTable {
      * @see addColumn
      * @param array $columns
      * @param bool $add true to add these columns to existing columns
-     * @return \mangetasoupe\pdf\TcTable
+     * @return TcTable
      */
     public function setColumns(array $columns, $add = false) {
         if (!$add) {
@@ -892,7 +892,7 @@ class TcTable {
      * @param callable|null $fn data layout function
      * @return TcTable
      */
-    public function addBody($rows, callable $fn = null) {
+    public function addBody($rows, ?callable $fn = null) {
         // last column will have TRUE for the TCPDF [ln] property
         end($this->columnDefinition);
         $this->columnDefinition[key($this->columnDefinition)]['ln'] = true;

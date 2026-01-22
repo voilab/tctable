@@ -61,7 +61,7 @@ class Debug implements Plugin {
      * @param array $listen events to listen to. Default to rowadd, rowadded,
      * rowskipped, pageadd, pageadded, headeradd, headeradded
      */
-    public function __construct(array $listen = null, debug\PrinterInterface $printer = null) {
+    public function __construct(?array $listen = null, ?debug\PrinterInterface $printer = null) {
         $this->listen = $listen ?: [
             TcTable::EV_HEADER_ADD, TcTable::EV_HEADER_ADDED,
             TcTable::EV_PAGE_ADD, TcTable::EV_PAGE_ADDED,

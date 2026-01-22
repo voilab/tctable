@@ -1,6 +1,6 @@
 {
     "name": "voilab/tctable",
-    "version": "1.2.4",
+    "version": "2.0.0",
     "description": "Create quickly and efficiently tables without HTML formatting and with advanced page break options",
     "keywords": [
         "voilab",
@@ -20,7 +20,7 @@
         }
     ],
     "require": {
-        "php" : ">=5.5.0",
+        "php" : ">=8.0.0",
         "tecnickcom/tcpdf": "6.*"
     },
     "require-dev": {
